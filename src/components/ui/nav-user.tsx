@@ -55,7 +55,7 @@ export function NavUser() {
   }
 
   return (
-    <SidebarMenu className="w-full">
+    <SidebarMenu style={{background: 'linear-gradient(to right, #c2e59c, #64b3f4)'}} className="w-full bg-[#c2e59c]">
       <SidebarMenuItem className="w-full">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -71,7 +71,7 @@ export function NavUser() {
                   </AvatarFallback>
                 )}
               </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
+              <div style={{background: 'linear-gradient(to right, #c2e59c, #64b3f4)'}} className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{userData.name}</span>
                 <span className="truncate text-xs">{userData.email}</span>
               </div>
@@ -79,7 +79,7 @@ export function NavUser() {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg bg-black"
+            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg bg-[#c2e59c]"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}>

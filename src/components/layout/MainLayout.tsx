@@ -73,10 +73,10 @@ export default function Page() {
             <div className={`${settingsOpen ? 'w-[63%]' : 'w-full'} h-full transition-all duration-300`}>
               <SidebarInset className="flex flex-col h-full">
                 {/* Header with the sidebar trigger */}
-                <header className={`sticky top-0 flex shrink-0 items-center gap-2 bg-background p-4 border-b border-r border-gray-300/20 ${settingsOpen ? 'max-w-[74%]' : 'max-w-[65%]'}`}>
+                <header className={`sticky top-0 flex shrink-0 items-center gap-2 bg-background p-4 border-b border-r border-gray-300/20 ${settingsOpen ? 'max-w-[90%]' : 'max-w-[65%]'}`}>
                   <SidebarTrigger className="flex items-center justify-center md:hidden" />
                   <div className="flex-1 ml-14 text-lg font-medium">Inbox</div>
-                  <Button
+                  {settingsOpen ? <></> : (<Button
                     variant="ghost"
                     size="icon"
                     onClick={() => setSettingsOpen(true)}
@@ -84,24 +84,25 @@ export default function Page() {
                   >
                     <SettingsIcon className="h-5 w-5" />
                     <span className="sr-only">Settings</span>
-                  </Button>
+                  </Button>)}
+                  
                 </header>
                 
                 {/* Content area */}
                 <div 
-                  className={`flex-1 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out overflow-auto ${settingsOpen ? 'max-w-[73.5%]' : 'max-w-[65%]'} ${
+                  className={`flex-1 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out overflow-auto ${settingsOpen ? 'max-w-[90%]' : 'max-w-[65%]'} ${
                     contentVisible ? 'opacity-100' : 'opacity-0 md:opacity-100 max-h-0 md:max-h-full'
                   }`}
                 >
                   {!isPlatformConnected && (
-                    <Card className={`border-2 border-yellow-600/30 bg-amber-950/10 shadow-lg mb-6 ${settingsOpen ? 'max-w-[95%] ml-2' : 'max-w-[70%]' } mx-auto`}>
+                    <Card className={`border-2 border-yellow-600/30 bg-amber-950/10 shadow-lg mb-6 ${settingsOpen ? 'max-w-[100%]' : 'max-w-[70%]' } mx-auto`}>
                       <CardHeader className="bg-amber-950/20 pb-2">
                         <CardTitle className={`flex items-center text-amber-400 ${settingsOpen ? 'text-sm' : 'text-lg'}`}>
                           <AlertTriangle className="h-5 w-5 mr-2" />
                           No platforms connected
                         </CardTitle>
                         <CardDescription className={`text-amber-300/80 ${settingsOpen ? 'text-xs' : 'text-sm'}`}>
-                          Connect to WhatsApp or Telegram to start messaging
+                          Connect to an account to start messaging
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="pt-3 pb-4">
@@ -139,8 +140,8 @@ export default function Page() {
             
             {/* Right side - Settings area (conditionally shown) */}
             {settingsOpen && (
-              <div className="w-2/3 border-l h-full transition-all duration-300 overflow-auto absolute right-0 top-0 bottom-0 bg-background">
-                <div className="sticky top-0 z-10 flex items-center justify-between bg-background p-4 border-b">
+              <div className="w-2/3 border-l border-gray-300/20 h-full transition-all duration-300 overflow-auto absolute right-0 top-0 bottom-0 bg-background">
+                <div className="sticky top-0 z-10 flex items-center justify-between bg-background p-4 border-b border-gray-300/20">
                   <h2 className="text-lg font-semibold">Settings</h2>
                   <Button 
                     variant="ghost" 
