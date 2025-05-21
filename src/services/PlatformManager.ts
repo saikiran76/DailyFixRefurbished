@@ -9,6 +9,7 @@ import { getSocket, disconnectSocket } from '../utils/socketManager';
  */
 class PlatformManager {
   private activePlatform: string | null = null;
+  public availablePlatforms: string[] = ['whatsapp', 'telegram'];
   private platformStates: Map<string, { active: boolean, lastInitialized: Date, options: any }> = new Map();
   private platformInitializers: { [key: string]: () => Promise<boolean> } = {};
   private platformCleanupHandlers: { [key: string]: () => Promise<boolean> } = {};

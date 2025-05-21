@@ -481,7 +481,9 @@ const AppRoutes = () => {
             <Navigate to="/onboarding" replace />
           ) : (
             // If we have a session and onboarding is complete, show the dashboard
-            renderLazy(Dashboard)
+            <AuthErrorBoundary>
+              <Dashboard />
+            </AuthErrorBoundary>
           )
         }
       />
