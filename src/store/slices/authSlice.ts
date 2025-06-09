@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { getSupabaseClient } from '@/utils/supabase';
-import { tokenManager } from '../../utils/tokenManager';
+import { tokenManager } from '@/utils/tokenManager';
 import { fetchOnboardingStatus } from './onboardingSlice';
 import logger from '@/utils/logger';
 import authService from '../../services/authService';
@@ -340,13 +340,13 @@ export const {
   setGoogleAuthPending
 } = authSlice.actions;
 
-export const selectSession = (state) => state.auth.session;
-export const selectUser = (state) => state.auth.user;
-export const selectIsLoading = (state) => state.auth.loading;
-export const selectError = (state) => state.auth.error;
-export const selectIsInitializing = (state) => state.auth.initializing;
-export const selectHasInitialized = (state) => state.auth.hasInitialized;
-export const selectMatrixCredentials = (state) => state.auth.matrixCredentials;
-export const selectGoogleAuthPending = (state) => state.auth.googleAuthPending;
+export const selectSession = (state: any) => state.auth.session;
+export const selectUser = (state: any) => state.auth.user;
+export const selectIsLoading = (state: any) => state.auth.loading;
+export const selectError = (state: any) => state.auth.error;
+export const selectIsInitializing = (state: any) => state.auth.initializing;
+export const selectHasInitialized = (state: any) => state.auth.hasInitialized;
+export const selectMatrixCredentials = (state: any) => state.auth.matrixCredentials;
+export const selectGoogleAuthPending = (state: any) => state.auth.googleAuthPending;
 
 export const authReducer = authSlice.reducer;

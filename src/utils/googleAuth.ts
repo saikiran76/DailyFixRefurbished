@@ -95,14 +95,17 @@ export const initiateGoogleSignIn = async (): Promise<void> => {
 };
 
 /**
- * Clean up any existing auth storage data
+ * Clean up any existing auth state data
+ * CRITICAL FIX: Only remove temporary auth state, not the actual tokens
  */
 const cleanupAuthStorage = () => {
   try {
+    // ONLY remove the state token used for CSRF protection
     localStorage.removeItem(STATE_STORAGE_KEY);
-    logger.info('[GoogleAuth] Cleaned up existing auth storage');
+    // DO NOT remove access_token, refresh_token or any other auth data here
+    logger.info('[GoogleAuth] Cleaned up temporary auth state');
   } catch (error) {
-    logger.warn('[GoogleAuth] Error cleaning up auth storage:', error);
+    logger.warn('[GoogleAuth] Error cleaning up temporary auth state:', error);
   }
 };
 
@@ -153,8 +156,10 @@ export const handleGoogleCallback = async () => {
         
         logger.info('[GoogleAuth] Successfully exchanged code for session');
         
-        // Clean up storage after successful authentication
-        cleanupAuthStorage();
+        // Clean up temporary auth state after successful authentication
+        // CRITICAL FIX: Only removing temporary state, NOT the tokens themselves
+        localStorage.removeItem(STATE_STORAGE_KEY);
+        logger.info('[GoogleAuth] Cleaned up temporary auth state');
         
         return exchangeData;
       } catch (exchangeError) {
@@ -176,8 +181,10 @@ export const handleGoogleCallback = async () => {
         
         logger.info('[GoogleAuth] Successfully obtained session after fallback');
         
-        // Clean up storage after successful authentication
-        cleanupAuthStorage();
+        // Clean up temporary auth state after successful authentication
+        // CRITICAL FIX: Only removing temporary state, NOT the tokens themselves
+        localStorage.removeItem(STATE_STORAGE_KEY);
+        logger.info('[GoogleAuth] Cleaned up temporary auth state');
         
         return data;
       }
@@ -200,13 +207,16 @@ export const handleGoogleCallback = async () => {
     
     logger.info('[GoogleAuth] Successfully obtained existing session');
     
-    // Clean up storage after successful authentication
-    cleanupAuthStorage();
+    // Clean up temporary auth state after successful authentication
+    // CRITICAL FIX: Only removing temporary state, NOT the tokens themselves
+    localStorage.removeItem(STATE_STORAGE_KEY);
+    logger.info('[GoogleAuth] Cleaned up temporary auth state');
     
     return data;
   } catch (error) {
-    // Clean up storage on error
-    cleanupAuthStorage();
+    // Clean up temporary auth state on error
+    // CRITICAL FIX: Only removing temporary state, NOT the tokens themselves
+    localStorage.removeItem(STATE_STORAGE_KEY);
     logger.error('[GoogleAuth] Error handling Google callback:', error);
     throw error;
   }

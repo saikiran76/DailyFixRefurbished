@@ -22,10 +22,17 @@ const SessionExpiredModal = ({ isOpen, onClose }: SessionExpiredModalProps) => {
   const navigate = useNavigate();
   const logger = useLogger();
 
-  // When opened, log the session expiration
+  // When opened, log the session expiration and auto-redirect after a delay
   useEffect(() => {
     if (isOpen) {
       logger.warn('Session expired modal opened');
+      
+      // Auto-redirect to login page after 3 seconds
+      const redirectTimer = setTimeout(() => {
+        handleLogin();
+      }, 3000);
+      
+      return () => clearTimeout(redirectTimer);
     }
   }, [isOpen, logger]);
 
@@ -35,12 +42,13 @@ const SessionExpiredModal = ({ isOpen, onClose }: SessionExpiredModalProps) => {
   };
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent className="sm:max-w-[425px]">
+    <AlertDialog className="bg-neutral-800" open={isOpen} onOpenChange={onClose}>
+      <AlertDialogContent className="sm:max-w-[425px] bg-neutral-800 border-gray-700">
         <AlertDialogHeader className="gap-2">
-          <AlertDialogTitle className="text-xl">Session Expired</AlertDialogTitle>
+          <AlertDialogTitle variant="destructive" className="text-xl">Session Expired</AlertDialogTitle>
           <AlertDialogDescription className="text-sm text-muted-foreground">
             Your session has expired. Please log in again to continue using the application.
+            Redirecting to login page...
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-4">
@@ -51,7 +59,7 @@ const SessionExpiredModal = ({ isOpen, onClose }: SessionExpiredModalProps) => {
               size="default"
               className="w-full sm:w-auto"
             >
-              Log In
+              Go back to login
             </Button>
           </AlertDialogAction>
         </AlertDialogFooter>

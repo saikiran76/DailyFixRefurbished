@@ -6,6 +6,7 @@ import { FcGoogle } from 'react-icons/fc';
 import { useLogger } from '@/hooks/useLogger';
 import type { AppDispatch, RootState } from '@/store/store';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
+import CentralLoader from '@/components/ui/CentralLoader';
 // import bgLeft from '@/images/loginbg.png';
 // import bgRight from '@/images/loginbg2.png';
 // import '@/styles/BorderStyles.css';
@@ -95,6 +96,16 @@ const Login = () => {
       setLocalError(error?.message || 'Invalid email or password. Please try again.');
     }
   };
+
+  // Show full-screen loader during authentication process
+  if (isLoading || googleAuthPending) {
+    return (
+      <CentralLoader
+        message={googleAuthPending ? "Connecting with Google..." : "Signing you in..."}
+        subMessage="Please wait while we authenticate your account"
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-row bg-black text-white">
@@ -210,18 +221,10 @@ const Login = () => {
             
             <Button
               type="submit"
-              disabled={isLoading}
               className="w-full h-10 mt-2 bg-white text-black hover:bg-gray-200"
               variant="default"
             >
-              {isLoading ? (
-                <span className="flex items-center justify-center">
-                  <LavaLamp className="w-[20px] h-[40px] mr-3" />
-                  <span>Signing in...</span>
-                </span>
-              ) : (
-                "Sign in with Email"
-              )}
+              Sign in with Email
             </Button>
           </form>
           
@@ -239,21 +242,13 @@ const Login = () => {
           <Button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={isLoading || googleAuthPending}
             variant="outline"
             className="w-full h-10 border border-gray-800 text-gray-300 hover:bg-gray-900"
           >
-            {googleAuthPending ? (
-              <span className="flex items-center justify-center">
-                <LavaLamp className="w-[20px] h-[40px] mr-3" />
-                <span>Connecting...</span>
-              </span>
-            ) : (
-              <span className="flex items-center justify-center">
-                <FcGoogle className="mr-2 h-5 w-5" />
-                Google
-              </span>
-            )}
+            <span className="flex items-center justify-center">
+              <FcGoogle className="mr-2 h-5 w-5" />
+              Google
+            </span>
           </Button>
           
           <div className="text-center mt-6">

@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { tokenManager } from '../utils/tokenManager';
-import logger from '../utils/logger';
-import { getSupabaseClient } from '../utils/supabase';
+import { tokenManager } from '@/utils/tokenManager';
+import logger from '@/utils/logger';
+import { getSupabaseClient } from '@/utils/supabase';
 
 // Standard response structure (keeping from original api.ts)
 export const ResponseStatus = {

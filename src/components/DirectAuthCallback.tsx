@@ -8,6 +8,8 @@ import tokenManager from '@/utils/tokenManager';
 import { useLogger } from '@/hooks/useLogger';
 import { toast } from 'react-hot-toast';
 import LavaLamp from './ui/Loader/LavaLamp';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { AppDispatch } from '@/store';
 
 /**
@@ -236,40 +238,46 @@ const DirectAuthCallback = () => {
   }, [dispatch, navigate, logger]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black p-4 text-white">
-      <div className="w-full max-w-md p-8 space-y-6 rounded-lg bg-zinc-900 border border-zinc-800">
-        <h2 className="text-2xl font-bold text-center">
+    <Card className="min-h-screen flex flex-col items-center justify-center bg-black p-4 text-white">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
           {error ? 'Authentication Error' : 'Authenticating...'}
-        </h2>
-        
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
         {loading && (
-          <div className="flex flex-col items-center justify-center space-y-4 py-6">
+          <CardContent className="flex flex-col items-center justify-center space-y-4 py-6">
             <LavaLamp className="w-[60px] h-[120px]" />
             <p className="text-center text-zinc-400">
               Processing your sign-in. Please wait...
             </p>
-          </div>
+          </CardContent>
         )}
         
         {error && !loading && (
-          <div className="text-center space-y-4 py-6">
-            <div className="text-red-500">{error}</div>
+          <CardContent className="text-center space-y-4 py-6">
+            <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
             <p className="text-zinc-400">
               Redirecting to login page...
             </p>
-          </div>
+          </CardContent>
         )}
         
         {!loading && !error && (
-          <div className="text-center space-y-4 py-6">
-            <div className="text-green-500">Authentication successful!</div>
-            <p className="text-zinc-400">
-              Redirecting you to your dashboard...
-            </p>
-          </div>
+          <CardContent className="text-center space-y-4 py-6">
+            <Alert variant="default">
+              <AlertTitle>Authentication successful!</AlertTitle>
+              <AlertDescription>
+                Redirecting you to your dashboard...
+              </AlertDescription>
+            </Alert>
+          </CardContent>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

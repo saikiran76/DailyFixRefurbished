@@ -207,7 +207,7 @@ function App() {
             <SessionExpirationHandler />
             <AppRoutes />
             {/* Debug panel only in development mode */}
-            {process.env.NODE_ENV === 'development' && <DebugPanel />}
+            {/* {process.env.NODE_ENV === 'development' && <DebugPanel />} */}
           </SessionManager>
           
           {/* Emergency navigation buttons - only shown when needed */}

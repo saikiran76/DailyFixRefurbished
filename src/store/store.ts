@@ -2,13 +2,19 @@ import { configureStore } from '@reduxjs/toolkit';
 import type { Middleware, PayloadAction } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
+
+// First import reducers that don't depend on others
 import { authReducer } from './slices/authSlice';
 import onboardingReducer from './slices/onboardingSlice';
 import { progressReducer } from './slices/progressSlice';
-import { contactReducer } from './slices/contactSlice';
-import { messageReducer } from './slices/messageSlice';
 import socketReducer from './slices/socketSlice';
 import matrixReducer from './slices/matrixSlice';
+import { messageReducer } from '@/store/slices/messageSlice';
+
+// Import contactReducer directly to avoid accessing the slice object
+import { contactReducer, getContactReducer } from '@/store/slices/contactSlice';
+
+
 import apiService from '../services/apiService';
 import logger from '../utils/logger';
 import { tokenManager } from '../utils/tokenManager';

@@ -8,6 +8,7 @@ import { useLogger } from '@/hooks/useLogger';
 import { signUp, signInWithGoogle, resetPassword } from '@/store/slices/authSlice';
 import { getSupabaseClient } from '@/utils/supabase';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
+import CentralLoader from '@/components/ui/CentralLoader';
 import type { AppDispatch } from '@/store/store';
 
 // Shadcn UI components
@@ -24,6 +25,7 @@ const bgImage = "https://images.rawpixel.com/image_800/czNmcy1wcml2YXRlL3Jhd3Bpe
 interface RootState {
   auth: {
     googleAuthPending: boolean;
+    loading: boolean;
   };
 }
 
@@ -58,7 +60,7 @@ const Signup = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { googleAuthPending } = useSelector((state: RootState) => state.auth);
+  const { googleAuthPending, loading: reduxLoading } = useSelector((state: RootState) => state.auth);
 
   const validateForm = () => {
     if (!email.trim() || !email.includes('@')) {
@@ -170,6 +172,26 @@ const Signup = () => {
       setIsLoading(false);
     }
   };
+
+  // Show a centralized loader when any authentication process is in progress
+  if (isLoading || reduxLoading || googleAuthPending) {
+    const message = googleAuthPending 
+      ? "Connecting with Google..." 
+      : verificationRequired
+        ? "Verification email sent!"
+        : "Creating your account...";
+      
+    const subMessage = verificationRequired
+      ? "Please check your email to complete registration"
+      : "Please wait while we set up your account";
+      
+    return (
+      <CentralLoader 
+        message={message}
+        subMessage={subMessage}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-row bg-black text-white">
@@ -318,16 +340,10 @@ const Signup = () => {
             
             <Button
               type="submit"
-              disabled={isLoading || googleAuthPending}
               className="w-full h-10 mt-2 bg-white text-black hover:bg-gray-200"
               variant="default"
             >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <LavaLamp className="w-[20px] h-[40px] mr-3" />
-                  <span>Signing up...</span>
-                </div>
-              ) : 'Sign up with Email'}
+              Sign up with Email
             </Button>
           </form>
           
@@ -345,21 +361,13 @@ const Signup = () => {
           <Button
             type="button"
             onClick={handleGoogleSignIn}
-            disabled={isLoading || googleAuthPending}
             variant="outline"
             className="w-full h-10 border border-gray-800 text-gray-300 hover:bg-gray-900"
           >
-            {googleAuthPending ? (
-              <div className="flex items-center justify-center">
-                <LavaLamp className="w-[20px] h-[40px] mr-3" />
-                <span>Connecting...</span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-center">
-                <FcGoogle className="h-5 w-5 mr-2" />
-                <span>Google</span>
-              </div>
-            )}
+            <div className="flex items-center justify-center">
+              <FcGoogle className="h-5 w-5 mr-2" />
+              <span>Google</span>
+            </div>
           </Button>
           
           <p className="mt-6 text-center text-sm text-gray-500">
@@ -422,6 +430,16 @@ export const ForgotPassword = () => {
       setIsLoading(false);
     }
   };
+
+  // Show loader during password reset
+  if (isLoading) {
+    return (
+      <CentralLoader
+        message="Sending reset instructions"
+        subMessage="Please wait while we send you the password reset link"
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-row bg-black text-white">
@@ -502,16 +520,10 @@ export const ForgotPassword = () => {
             
             <Button
               type="submit"
-              disabled={isLoading}
               className="w-full h-10 mt-2 bg-white text-black hover:bg-gray-200"
               variant="default"
             >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <LavaLamp className="w-[20px] h-[40px] mr-3" />
-                  <span>Sending...</span>
-                </div>
-              ) : 'Send Reset Link'}
+              Send Reset Link
             </Button>
             
             <p className="mt-4 text-center text-sm text-gray-400">

@@ -42,11 +42,17 @@ export function ThemeProvider({
         ? "dark"
         : "light";
 
-      root.classList.add(systemTheme);
+      console.log('[ThemeProvider] System theme detected:', systemTheme);
+      
+      // Force light mode for now to fix visibility issues
+      root.classList.add("light");
       return;
     }
 
-    root.classList.add(theme);
+    console.log('[ThemeProvider] Setting theme to:', theme);
+    
+    // Force light mode for now to fix visibility issues
+    root.classList.add("light");
   }, [theme]);
 
   const value = {

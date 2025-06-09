@@ -12,8 +12,9 @@ import { useStore } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
 import { refreshTokenIfNeeded } from '@/utils/authSecurityHelpers';
 import { SupabaseClient } from '@supabase/supabase-js';
-import LavaLamp from '@/components/ui/Loader/LavaLamp';
-
+// import LavaLamp from '@/components/ui/Loader/LavaLamp';
+import CentralLoader from '@/components/ui/CentralLoader';
+// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 /**
  * SessionManager component
  * Handles authentication state management and session persistence
@@ -415,18 +416,45 @@ const SessionManager = ({ children }: SessionManagerProps) => {
     };
   }, [logger, dispatch]);
 
+  // Get the appropriate loading message based on the current route
+  const getLoaderMessage = () => {
+    if (location.pathname.includes('/auth/')) {
+      return {
+        main: "Processing authentication...",
+        sub: "Please wait while we secure your session"
+      };
+    }
+    
+    return {
+      main: "Initializing application...",
+      sub: "Please wait while we load your session"
+    };
+  };
+
+  // Handle manual continue button click
+  const handleManualContinue = () => {
+    logger.info('[SessionManager] Manual continue triggered by user');
+    setIsValidating(false);
+    setInitialized(true);
+    globalInitialized = true;
+    
+    // Navigate based on auth state
+    if (session) {
+      navigate('/onboarding');
+    } else {
+      navigate('/login');
+    }
+  };
+
   // Render children once validation is complete
   return isValidating ? (
-    <div className="flex items-center justify-center min-h-screen">
-      <LavaLamp className="w-[60px] h-[100px]" />
-      {/* Add loading text to indicate initialization status */}
-      <div className="ml-4 flex flex-col">
-        <p className="text-muted-foreground">Initializing application...</p>
-        <p className="text-xs text-muted-foreground/70">
-          {location.pathname.includes('/auth/') ? 'Processing authentication...' : 'Loading your session...'}
-        </p>
-      </div>
-    </div>
+    <CentralLoader
+      message={getLoaderMessage().main}
+      subMessage={getLoaderMessage().sub}
+      showButton={isValidating && !initialized && emergencyTimeoutRef.current !== null}
+      buttonText="Continue Manually"
+      onButtonClick={handleManualContinue}
+    />
   ) : (
     <>{children}</>
   );

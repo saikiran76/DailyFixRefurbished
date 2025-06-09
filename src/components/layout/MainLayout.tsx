@@ -1,74 +1,473 @@
+import { useEffect, useState, useRef, useCallback } from "react"
+import { useSelector, useDispatch } from "react-redux"
 import { AppSidebar } from "@/components/ui/app-sidebar"
+// import {
+//   Breadcrumb,
+//   BreadcrumbItem,
+//   BreadcrumbLink,
+//   BreadcrumbList,
+//   BreadcrumbPage,
+//   BreadcrumbSeparator,
+// } from "@/components/ui/breadcrumb"
+// import { Separator } from "@/components/ui/separator"
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
+  SidebarProvider, SidebarInset, SidebarTrigger
 } from "@/components/ui/sidebar"
-import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
+import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send } from "lucide-react"
+import PlatformSettings from "@/components/PlatformSettings"
+import PlatformsInfo from "@/components/PlatformsInfo"
+import WhatsappContactList from "@/components/platforms/whatsapp/WhatsappContactList"
+import TelegramContactList from "@/components/platforms/telegram/TelegramContactList"
+import { ChatViewWithErrorBoundary as WhatsAppChatView } from '@/components/platforms/whatsapp/WhatsappChatView'
+import { ChatViewWithErrorBoundary as TelegramChatView } from '@/components/platforms/telegram/TelegramChatView'
+import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage'
+import { toast } from 'react-hot-toast'
+import logger from '@/utils/logger'
+
+// Define interface for contact objects
+interface Contact {
+  id: number;
+  telegram_id?: string;
+  whatsapp_id?: string;
+  display_name: string;
+  last_message?: string;
+  last_message_at?: string;
+  avatar_url?: string;
+  membership?: string;
+  [key: string]: any; // Allow additional properties
+}
 
 export default function Page() {
   // State to track if content below header is visible
   const [contentVisible, setContentVisible] = useState(true)
+  // State to track if settings are open
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // State to track active platform contact list
+  const [activeContactList, setActiveContactList] = useState<string | null>(null)
+  // State to track selected contact ID
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null)
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   
-  // Toggle content visibility
-  const toggleContent = () => {
-    setContentVisible(prev => !prev)
+  // State for resizable inbox width - default to 35% when settings are open
+  const [inboxWidth, setInboxWidth] = useState<number>(100)
+  const [isResizing, setIsResizing] = useState<boolean>(false)
+  const [isResizerHovered, setIsResizerHovered] = useState<boolean>(false)
+  const resizerRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const startXRef = useRef<number>(0)
+  const startWidthRef = useRef<number>(0)
+  
+  // Get onboarding state from Redux
+  const onboardingState = useSelector((state: any) => state.onboarding)
+  const { matrixConnected, whatsappConnected, telegramConnected } = onboardingState
+  const currentUser = useSelector((state: any) => state.auth.session?.user)
+  
+  // Check if any platform is connected - include telegram in check
+  const isTelegramActive = telegramConnected || (currentUser?.id && isTelegramConnected(currentUser.id))
+  const isWhatsappActive = whatsappConnected || (currentUser?.id && isWhatsAppConnected(currentUser.id))
+  const isPlatformConnected = matrixConnected || isWhatsappActive || isTelegramActive
+  
+  // Log platform connection states when they change for debugging
+  useEffect(() => {
+    logger.info('[MainLayout] Platform connection states:', {
+      whatsappActive: isWhatsappActive,
+      telegramActive: isTelegramActive,
+      activeContactList,
+      isPlatformConnected
+    });
+  }, [isWhatsappActive, isTelegramActive, activeContactList, isPlatformConnected]);
+  
+  // Initialize active contact list based on connected platforms on mount
+  useEffect(() => {
+    if (!activeContactList && isPlatformConnected) {
+      // Get the platform from URL or local storage if available
+      const storedPlatform = localStorage.getItem('dailyfix_active_platform');
+      
+      if (storedPlatform) {
+        // Check if the stored platform is actually connected
+        if ((storedPlatform === 'whatsapp' && isWhatsappActive) || 
+            (storedPlatform === 'telegram' && isTelegramActive)) {
+          logger.info(`[MainLayout] Restoring previously selected platform: ${storedPlatform}`);
+          setActiveContactList(storedPlatform);
+          return;
+        }
+      }
+      
+      // Only auto-select a platform if we don't have a stored preference
+      if (isTelegramActive) {
+        logger.info('[MainLayout] Auto-selecting Telegram as active platform');
+        setActiveContactList('telegram');
+      } else if (isWhatsappActive) {
+        logger.info('[MainLayout] Auto-selecting WhatsApp as active platform');
+        setActiveContactList('whatsapp');
+      }
+    }
+  }, [isPlatformConnected, isWhatsappActive, isTelegramActive, activeContactList]);
+  
+  // Save the active platform when it changes
+  useEffect(() => {
+    if (activeContactList) {
+      localStorage.setItem('dailyfix_active_platform', activeContactList);
+      logger.info(`[MainLayout] Saved active platform to localStorage: ${activeContactList}`);
+    }
+  }, [activeContactList]);
+  
+  // Handlers for platform-specific selection
+  const handleWhatsAppSelected = () => {
+    logger.info('[MainLayout] WhatsApp selected from sidebar');
+    if (!isWhatsappActive) {
+      toast.error('WhatsApp is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+    setActiveContactList('whatsapp');
+    setSelectedContactId(null);
+    setSelectedContact(null);
+  };
+  
+  const handleTelegramSelected = () => {
+    logger.info('[MainLayout] Telegram selected from sidebar');
+    if (!isTelegramActive) {
+      toast.error('Telegram is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+    setActiveContactList('telegram');
+    setSelectedContactId(null);
+    setSelectedContact(null);
+  };
+  
+  // Handle platform sync start
+  const handleStartSync = (platform: string) => {
+    logger.info(`[MainLayout] Starting sync for platform: ${platform}`);
+    setActiveContactList(platform);
+    // Reset selected contact when changing platform
+    setSelectedContactId(null);
+    setSelectedContact(null);
+    
+    // Show confirmation to user
+    toast.success(`Switched to ${platform.charAt(0).toUpperCase() + platform.slice(1)}`);
   }
   
+  // Handle platform switching from the AppSidebar
+  const handlePlatformSelect = (platformId: string) => {
+    logger.info(`[MainLayout] Platform selected from sidebar: ${platformId}`);
+    
+    // Don't do anything if it's already the active platform
+    if (platformId === activeContactList) {
+      logger.info(`[MainLayout] Platform ${platformId} is already active, no change needed`);
+      return;
+    }
+    
+    // Check if the platform is actually connected before switching
+    if (platformId === 'whatsapp' && !isWhatsappActive) {
+      toast.error('WhatsApp is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    } 
+    
+    if (platformId === 'telegram' && !isTelegramActive) {
+      toast.error('Telegram is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+    
+    // Clear all state related to the previous platform
+    dispatch({ type: 'contacts/reset' });
+    dispatch({ type: 'messages/clearAll' });
+    
+    // Set the new active platform
+    setActiveContactList(platformId);
+    
+    // Reset selected contact when changing platform
+    setSelectedContactId(null);
+    setSelectedContact(null);
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('dailyfix_active_platform', platformId);
+    
+    // Show confirmation to user
+    toast.success(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
+  }
+  
+  // Handle contact selection
+  const handleContactSelect = (contact: Contact) => {
+    logger.info(`[MainLayout] Contact selected: ${contact.id}, ${contact.display_name}`);
+    setSelectedContactId(contact.id);
+    setSelectedContact(contact);
+  }
+  
+  // Handle chat close
+  const handleChatClose = () => {
+    setSelectedContactId(null);
+    setSelectedContact(null);
+  }
+  
+  // Listen for open-settings events
+  useEffect(() => {
+    const handleOpenSettings = () => {
+      setSettingsOpen(true)
+    }
+    
+    window.addEventListener('open-settings', handleOpenSettings)
+    
+    return () => {
+      window.removeEventListener('open-settings', handleOpenSettings)
+    }
+  }, [])
+  
+  // Effect to reset the inbox width when settings are opened/closed
+  useEffect(() => {
+    if (settingsOpen) {
+      setInboxWidth(35) // Default width when settings are open (35% for inbox)
+    } else {
+      setInboxWidth(100) // Full width when settings are closed
+    }
+  }, [settingsOpen])
+
+  // Fixed resize handlers to ensure they work properly
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    if (!contentRef.current) return
+    
+    // Store the starting X position and initial width
+    startXRef.current = e.clientX
+    startWidthRef.current = inboxWidth
+    
+    setIsResizing(true)
+    
+    // Explicitly add a class to the body to change cursor while resizing
+    document.body.style.cursor = 'col-resize'
+    document.body.classList.add('select-none')
+  }, [inboxWidth])
+  
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !contentRef.current) return
+    
+    // Calculate delta movement and apply it to the starting width
+    const containerRect = contentRef.current.getBoundingClientRect()
+    const containerWidth = containerRect.width
+    
+    const deltaX = e.clientX - startXRef.current
+    const deltaPercentage = (deltaX / containerWidth) * 100
+    let newWidth = startWidthRef.current + deltaPercentage
+    
+    // Restrict width to reasonable limits (25% to 60%)
+    newWidth = Math.max(25, Math.min(60, newWidth))
+    
+    setInboxWidth(newWidth)
+  }, [isResizing])
+  
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false)
+    
+    // Reset body cursor and selection
+    document.body.style.cursor = ''
+    document.body.classList.remove('select-none')
+    
+    // Reset refs
+    startXRef.current = 0
+    startWidthRef.current = 0
+  }, [])
+  
+  // Set up global event listeners for mouse move and mouse up
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove, { passive: false })
+      document.addEventListener('mouseup', handleMouseUp)
+      
+      // Prevent text selection during resize
+      document.body.style.userSelect = 'none'
+    } else {
+      document.body.style.userSelect = ''
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.userSelect = ''
+    }
+  }, [isResizing, handleMouseMove, handleMouseUp])
+  
+  // Redux dispatch for actions
+  const dispatch = useDispatch();
+
+  // Function to render the platform icon based on the active platform
+  const renderPlatformIcon = () => {
+    if (activeContactList === 'telegram') {
+      return <Send className="h-5 w-5 mr-2 text-blue-400" />;
+    } else if (activeContactList === 'whatsapp') {
+      return <MessageSquare className="h-5 w-5 mr-2 text-green-500" />;
+    }
+    return null;
+  };
+  
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Main layout container with sidebar and content arranged horizontally */}
-      <SidebarProvider
-        style={
-          {
-            "--sidebar-width": "400px",
-          } as React.CSSProperties
-        }
-      >
-        {/* This div ensures sidebar and content are properly positioned */}
-        <div className="flex flex-row w-full h-full">
-          {/* Sidebar container with proper width and positioning */}
-          <div className="h-full">
-            <AppSidebar />
-          </div>
-          
-          {/* Content area that takes remaining width */}
-          <div className="flex-1 overflow-auto">
-            <SidebarInset className="flex flex-col h-full">
-              {/* Header with the sidebar trigger */}
-              <header className="flex shrink-0 items-center gap-2 bg-background p-4">
-                <SidebarTrigger 
-                  className="flex items-center justify-center"
-                  onClick={toggleContent}
-                />
-              </header>
-              
-              {/* Content area */}
-              <div 
-                className={`flex-1 flex flex-col gap-4 p-4 transition-all duration-300 ease-in-out overflow-hidden ${
-                  contentVisible ? 'opacity-100' : 'opacity-0 md:opacity-100 max-h-0 md:max-h-full'
-                }`}
+    <SidebarProvider className="h-screen">
+      <AppSidebar
+        onWhatsAppSelected={handleWhatsAppSelected}
+        onTelegramSelected={handleTelegramSelected}
+        onPlatformSelect={handlePlatformSelect}
+        onSettingsSelected={() => setSettingsOpen(true)}
+        onPlatformConnect={() => setSettingsOpen(true)}
+      />
+      <SidebarInset>
+        {/* Header */}
+        <header className="flex h-16 shrink-0 items-center gap-2 bg-black p-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          {settingsOpen ? (
+            <div className="flex-1 ml-4 text-lg font-medium text-white">Settings</div>
+          ) : (
+            <div className="flex-1 ml-4 text-lg font-medium text-white flex items-center">
+              {renderPlatformIcon()}
+              {activeContactList
+                ? `${activeContactList.charAt(0).toUpperCase() + activeContactList.slice(1)} Inbox`
+                : 'Inbox'}
+            </div>
+          )}
+          {settingsOpen ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSettingsOpen(false)}
+              className="ml-auto text-white hover:bg-gray-800"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
               >
-                {Array.from({ length: 24 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="aspect-video h-12 w-full rounded-lg bg-muted/50"
-                  />
-                ))}
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+              <span className="sr-only">Close</span>
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSettingsOpen(true)}
+              className="ml-auto text-white hover:bg-gray-800"
+            >
+              <SettingsIcon className="h-5 w-5" />
+              <span className="sr-only">Settings</span>
+            </Button>
+          )}
+        </header>
+
+        {/* Main Content */}
+        <div className="flex flex-1 h-full bg-black ml-6">
+          {settingsOpen ? (
+            <>
+              <div
+                style={{ width: `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
+                className="h-full flex flex-col bg-black"
+              >
+                <div className="flex-1 flex flex-col p-4 overflow-auto">
+                  {/* Inbox content */}
+                  {isPlatformConnected && !activeContactList && (
+                    <div className="flex flex-col gap-6">
+                      <div className="rounded-lg overflow-hidden">
+                        <div className="p-6 pb-8">
+                          <PlatformsInfo onStartSync={handleStartSync} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Additional inbox content */}
+                </div>
               </div>
-            </SidebarInset>
-          </div>
+              <div
+                ref={resizerRef}
+                className="w-4 h-full bg-black flex items-center justify-center cursor-col-resize z-50"
+                onMouseDown={handleMouseDown}
+                onMouseEnter={() => setIsResizerHovered(true)}
+                onMouseLeave={() => setIsResizerHovered(false)}
+              >
+                <div className={`h-full w-[1px] bg-gray-500 ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
+              </div>
+              <div className="flex-1 h-full flex flex-col bg-[#131516] overflow-auto">
+                <div className="flex-1 p-6 overflow-auto">
+                  <PlatformSettings />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div
+                style={{
+                  width: selectedContact ? '35%' : '100%',
+                  transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
+                }}
+                className="h-full flex flex-col bg-black"
+              >
+                <div className="flex-1 flex flex-col p-4 overflow-auto">
+                  {/* Inbox content */}
+                  {isPlatformConnected && !activeContactList && (
+                    <div className="flex flex-col gap-6">
+                      <div className="rounded-lg overflow-hidden">
+                        <div className="p-6 pb-8">
+                          <PlatformsInfo onStartSync={handleStartSync} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {activeContactList === 'whatsapp' && (
+                    <WhatsappContactList
+                      onContactSelect={handleContactSelect}
+                      selectedContactId={selectedContactId}
+                    />
+                  )}
+                  {activeContactList === 'telegram' && (
+                    <TelegramContactList
+                      onContactSelect={handleContactSelect}
+                      selectedContactId={selectedContactId}
+                    />
+                  )}
+                </div>
+              </div>
+              {selectedContact && (
+                <div className="flex-1 h-full">
+                  {activeContactList === 'whatsapp' ? (
+                    <WhatsAppChatView
+                      selectedContact={selectedContact}
+                      onContactUpdate={(updatedContact) => {
+                        if (selectedContact) {
+                          setSelectedContact({ ...selectedContact, ...updatedContact });
+                        }
+                      }}
+                      onClose={handleChatClose}
+                    />
+                  ) : activeContactList === 'telegram' ? (
+                    <TelegramChatView
+                      selectedContact={selectedContact}
+                      onContactUpdate={(updatedContact) => {
+                        if (selectedContact) {
+                          setSelectedContact({ ...selectedContact, ...updatedContact });
+                        }
+                      }}
+                      onClose={handleChatClose}
+                    />
+                  ) : null}
+                </div>
+              )}
+            </>
+          )}
         </div>
-      </SidebarProvider>
-    </div>
-  )
+      </SidebarInset>
+    </SidebarProvider>
+  );
 }
