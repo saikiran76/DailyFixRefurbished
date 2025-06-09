@@ -53,14 +53,7 @@ const SessionExpiredModal = ({ isOpen, onClose }: SessionExpiredModalProps) => {
         </AlertDialogHeader>
         <AlertDialogFooter className="mt-4">
           <AlertDialogAction asChild className="w-full sm:w-auto">
-            <Button 
-              onClick={handleLogin}
-              variant="default"
-              size="default"
-              className="w-full sm:w-auto"
-            >
-              Go back to login
-            </Button>
+            <p className="">Please Refresh the page to login</p>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
