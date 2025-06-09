@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/sidebar';
 import MainLayout from '@/components/layout/MainLayout';
 import { toast } from 'react-hot-toast';
+import CentralLoader from '@/components/ui/CentralLoader';
 
 // Icons
 import { 
@@ -132,14 +133,20 @@ const Dashboard = () => {
         return;
       } 
       
-      // If we've made multiple attempts, force onboarding to be complete
+      // CRITICAL FIX: Don't force onboarding to complete, which disrupts WhatsApp setup
+      /* Commenting out this block to prevent premature onboarding completion
       if (initAttemptCountRef.current >= 3) {
         logger.warn('[Dashboard] Multiple initialization attempts, forcing onboarding complete state');
         dispatch(setCurrentStep('complete'));
         dispatch(setIsComplete(true));
-        toast.success('Dashboard initialized successfully');
+        // toast.success('Dashboard initialized successfully');
         setIsInitialized(true);
         return;
+      }
+      */
+      // Instead, just log the multiple attempts but don't interfere with onboarding
+      if (initAttemptCountRef.current >= 3) {
+        logger.warn('[Dashboard] Multiple initialization attempts detected, but allowing onboarding to continue naturally');
       }
       
       // Check if onboarding is complete
@@ -161,15 +168,10 @@ const Dashboard = () => {
   // If not initialized yet, show loading
   if (!isInitialized) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p className="text-xl font-medium">Loading dashboard...</p>
-            <p className="text-sm text-muted-foreground mt-2">Please wait while we set up your experience</p>
-          </div>
-        </div>
-      </div>
+      <CentralLoader
+        message="Loading your dashboard"
+        subMessage="Preparing your personalized workspace"
+      />
     );
   }
 

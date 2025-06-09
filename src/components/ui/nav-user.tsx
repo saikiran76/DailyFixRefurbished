@@ -9,6 +9,7 @@ import {
 } from "lucide-react"
 import { useSelector } from "react-redux"
 import { useNavigate } from "react-router-dom"
+import { useState } from "react"
 
 import {
   Avatar,
@@ -26,15 +27,30 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
 import { toast } from "react-hot-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 export function NavUser() {
   const { isMobile } = useSidebar()
+  const isMobileDevice = useIsMobile()
   const navigate = useNavigate()
+  
+  // State for logout confirmation dialog
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   
   // Get auth state from Redux
   const authState = useSelector((state: any) => state.auth)
@@ -48,44 +64,40 @@ export function NavUser() {
     avatar: session?.user?.user_metadata?.avatar_url || null
   }
   
-  // Handle logout
-  const handleLogout = () => {
+  // Handle feature clicks
+  const handleFeatureClick = (feature: string) => {
+    // Prevent default action to avoid page refresh
+    toast.success(`${feature} feature coming soon!`)
+  }
+  
+  // Handle logout confirmation
+  const confirmLogout = () => {
+    // Clear auth data
+    localStorage.removeItem("authToken")
+    localStorage.removeItem("user")
+    
+    // Show success message
     toast.success("Logged out successfully")
+    
+    // Navigate to login page
     navigate("/login")
+    
+    // Close dialog
+    setShowLogoutConfirm(false)
   }
 
   return (
-    <SidebarMenu style={{background: 'linear-gradient(to right, #c2e59c, #64b3f4)'}} className="w-full bg-[#c2e59c]">
-      <SidebarMenuItem className="w-full">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0 w-full">
-              <Avatar className="h-8 w-8 rounded-lg">
-                {userData.avatar ? (
-                  <AvatarImage src={userData.avatar} alt={userData.name} className="object-cover" />
-                ) : (
-                  <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
-                    {userData.name.substring(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                )}
-              </Avatar>
-              <div style={{background: 'linear-gradient(to right, #c2e59c, #64b3f4)'}} className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{userData.name}</span>
-                <span className="truncate text-xs">{userData.email}</span>
-              </div>
-              <ChevronsUpDown className="ml-auto size-4" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg bg-[#c2e59c]"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}>
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
+    <>
+      <SidebarMenu className="w-full">
+        <SidebarMenuItem className="w-full">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                className={`flex items-center p-2 bg-transparent hover:bg-neutral-800 transition-colors duration-200 border-none focus:ring-0 rounded-md ${isMobileDevice ? 'w-full justify-start' : 'w-10 h-10 p-0 mx-auto justify-center'}`}
+                onClick={(e) => e.preventDefault()}
+              >
+                <Avatar className={`rounded-lg ${isMobileDevice ? 'h-8 w-8 mr-2' : 'h-7 w-7'}`}>
                   {userData.avatar ? (
                     <AvatarImage src={userData.avatar} alt={userData.name} className="object-cover" />
                   ) : (
@@ -94,42 +106,122 @@ export function NavUser() {
                     </AvatarFallback>
                   )}
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{userData.name}</span>
-                  <span className="truncate text-xs">{userData.email}</span>
+                {isMobileDevice && (
+                  <div className="flex-1 text-left">
+                    <div className="font-medium text-sm truncate">{userData.name}</div>
+                    <div className="text-xs truncate text-muted-foreground">{userData.email}</div>
+                  </div>
+                )}
+                {isMobileDevice && <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 opacity-50" />}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent 
+              side={isMobileDevice ? "bottom" : "right"} 
+              align={isMobileDevice ? "start" : "center"} 
+              sideOffset={8} 
+              className="w-56 bg-black text-white border border-gray-800"
+            >
+              <DropdownMenuLabel className="p-2">
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8 rounded-lg">
+                    {userData.avatar ? (
+                      <AvatarImage src={userData.avatar} alt={userData.name} className="object-cover" />
+                    ) : (
+                      <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
+                        {userData.name.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-medium leading-none">{userData.name}</p>
+                    <p className="text-xs text-muted-foreground">{userData.email}</p>
+                  </div>
                 </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <div
+                  className="cursor-pointer focus:bg-neutral-800 hover:bg-neutral-800 transition-colors duration-200 flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleFeatureClick("Upgrade to Pro")
+                  }}
+                >
+                  <Sparkles className="mr-2 h-4 w-4 text-yellow-400" />
+                  <span>Upgrade to Pro</span>
+                </div>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <div
+                  className="cursor-pointer focus:bg-neutral-800 hover:bg-neutral-800 transition-colors duration-200 flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleFeatureClick("Account")
+                  }}
+                >
+                  <UserIcon className="mr-2 h-4 w-4 text-blue-400" />
+                  <span>Account</span>
+                </div>
+                <div
+                  className="cursor-pointer focus:bg-neutral-800 hover:bg-neutral-800 transition-colors duration-200 flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleFeatureClick("Billing")
+                  }}
+                >
+                  <CreditCard className="mr-2 h-4 w-4 text-green-400" />
+                  <span>Billing</span>
+                </div>
+                <div
+                  className="cursor-pointer focus:bg-neutral-800 hover:bg-neutral-800 transition-colors duration-200 flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleFeatureClick("Notifications")
+                  }}
+                >
+                  <Bell className="mr-2 h-4 w-4 text-purple-400" />
+                  <span>Notifications</span>
+                </div>
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <div
+                className="cursor-pointer focus:bg-red-600 hover:bg-red-600 text-white transition-colors duration-200 flex items-center gap-2 px-2 py-1.5 rounded-sm text-sm"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setShowLogoutConfirm(true)
+                }}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
               </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem className="hover:bg-neutral-700 cursor-pointer">
-                <Sparkles className="mr-2 h-4 w-4" />
-                <span>Upgrade to Pro</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem className="hover:bg-neutral-700 duration-150 cursor-pointer">
-                <UserIcon className="mr-2 h-4 w-4" />
-                <span>Account</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="hover:bg-neutral-700 cursor-pointer">
-                <CreditCard className="mr-2 h-4 w-4" />
-                <span>Billing</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="hover:bg-neutral-700 cursor-pointer">
-                <Bell className="mr-2 h-4 w-4" />
-                <span>Notifications</span>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="hover:bg-neutral-700 cursor-pointer" onClick={handleLogout}>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+
+      {/* Logout Confirmation Dialog */}
+      <AlertDialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <AlertDialogContent className="bg-black text-white border border-gray-700">
+          <AlertDialogHeader className="flex flex-col gap-2">
+            <AlertDialogTitle className="text-lg font-semibold">Log Out</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              Are you sure you want to log out of your account?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+            <AlertDialogCancel className="bg-transparent text-white border-gray-700 hover:bg-gray-800">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmLogout}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

@@ -15,6 +15,7 @@ import onb1 from '@/images/onb1.gif';
 import onb2 from '@/images/onb2.gif';
 import onb3 from '@/images/onb3.gif';
 import DFLogo from '@/images/DF.png';
+import CentralLoader from '@/components/ui/CentralLoader';
 
 // Import shadcn UI components
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
@@ -358,30 +359,20 @@ const NewOnboarding = () => {
 
   // If not fully initialized yet, show loading state
   if (!initializationComplete) {
-  return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="flex flex-col items-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <p className="text-xl font-medium">Loading onboarding...</p>
-            <p className="text-sm text-muted-foreground mt-2">Please wait while we set up your experience</p>
-            
-            {/* CRITICAL FIX: Show continue button immediately to give users a way out */}
-            <button 
-              onClick={() => {
-                logger.info('[NewOnboarding] Manual continue button clicked');
-                setInitializationComplete(true);
-                // Also try to ensure onboarding state is correct
-                dispatch(setCurrentStep('welcome'));
-                dispatch(setIsComplete(false));
-              }}
-              className="mt-6 py-2 px-4 bg-primary text-white font-medium rounded-md hover:bg-primary-hover transition-colors"
-            >
-              Continue Manually
-            </button>
-          </div>
-        </div>
-                  </div>
+    return (
+      <CentralLoader
+        message="Setting up your onboarding"
+        subMessage="Please wait while we prepare your personalized experience"
+        showButton={true}
+        buttonText="Continue Manually"
+        onButtonClick={() => {
+          logger.info('[NewOnboarding] Manual continue button clicked');
+          setInitializationComplete(true);
+          // Also try to ensure onboarding state is correct
+          dispatch(setCurrentStep('welcome'));
+          dispatch(setIsComplete(false));
+        }}
+      />
     );
   }
 

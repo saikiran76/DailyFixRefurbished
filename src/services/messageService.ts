@@ -3,9 +3,10 @@ import logger from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 
 class MessageService {
-  async fetchMessages(contactId, params = {}) {
+  async fetchMessages(contactId, params = {}, platform = 'whatsapp') {
     try {
-      const response = await api.get(`/api/v1/whatsapp/contacts/${contactId}/messages`, {
+      const apiPrefix = `/api/v1/${platform}`;
+      const response = await api.get(`${apiPrefix}/contacts/${contactId}/messages`, {
         params: {
           limit: params.limit || 20,
           offset: (params.page || 0) * (params.limit || 20)
@@ -17,18 +18,19 @@ class MessageService {
       }
 
       return {
-        messages: response.data.data.messages || response.data.messages || [],
-        hasMore: (response.data.data.messages || response.data.messages || []).length === (params.limit || 20)
+        messages: response.data.data?.messages || response.data.messages || [],
+        hasMore: (response.data.data?.messages || response.data.messages || []).length === (params.limit || 20)
       };
     } catch (error) {
-      logger.error('[MessageService] Error fetching messages:', error);
+      logger.error(`[MessageService] Error fetching ${platform} messages:`, error);
       throw error;
     }
   }
 
-  async fetchNewMessages(contactId, lastEventId) {
+  async fetchNewMessages(contactId, lastEventId, platform = 'whatsapp') {
     try {
-      const response = await api.get(`/api/v1/whatsapp/contacts/${contactId}/newMessages`, {
+      const apiPrefix = `/api/v1/${platform}`;
+      const response = await api.get(`${apiPrefix}/contacts/${contactId}/newMessages`, {
         params: { lastEventId }
       });
 
@@ -37,13 +39,13 @@ class MessageService {
       }
 
       return {
-        messages: response.data.data.messages || [],
+        messages: response.data.data?.messages || [],
         hasMore: false // New messages endpoint doesn't support pagination
       };
     } catch (error) {
       // Check if error is related to Matrix server
       if (error.response?.status === 500 && error.response?.data?.error?.includes('Matrix')) {
-        logger.warn('[MessageService] Matrix server sync unavailable:', error);
+        logger.warn(`[MessageService] Matrix server sync unavailable for ${platform}:`, error);
         // Return empty messages array instead of throwing
         return {
           messages: [],
@@ -52,7 +54,7 @@ class MessageService {
         };
       }
       
-      logger.error('[MessageService] Error fetching new messages:', error);
+      logger.error(`[MessageService] Error fetching new ${platform} messages:`, error);
       throw error;
     }
   }
@@ -117,39 +119,42 @@ class MessageService {
     return content;
   }
 
-  // async sendMessage(contactId, message) {
-  //   try {
-  //     const response = await api.post(
-  //       `/api/whatsapp-entities/send-message/${contactId}`,
-  //       message
-  //     );
-
-  //     if (response.data.status !== 'success') {
-  //       throw new Error(response.data.message || 'Failed to send message');
-  //     }
-
-  //     return response.data;
-  //   } catch (error) {
-  //     logger.error('[MessageService] Error sending message:', error);
-  //     throw error;
-  //   }
-  // }
-
-  // async markMessagesAsRead(contactId, messageIds) {
-  //   try {
-  //     await api.post(`/api//contacts/${contactId}/messages/read`, {
-  //       messageIds: Array.from(messageIds)
-  //     });
-  //     return true;
-  //   } catch (error) {
-  //     logger.error('[MessageService] Error marking messages as read:', error);
-  //     throw error;
-  //   }
-  // }
-
-  async refreshMessages(contactId) {
+  async sendMessage(contactId, message, platform = 'whatsapp') {
     try {
-      const response = await api.get(`/api/v1/whatsapp/contacts/${contactId}/refreshMessages`);
+      const apiPrefix = `/api/v1/${platform}`;
+      const response = await api.post(
+        `${apiPrefix}/send/${contactId}`,
+        message
+      );
+
+      if (response.data?.status !== 'success' && !response.data?.messageId) {
+        throw new Error(response.data?.message || 'Failed to send message');
+      }
+
+      return response.data;
+    } catch (error) {
+      logger.error(`[MessageService] Error sending ${platform} message:`, error);
+      throw error;
+    }
+  }
+
+  async markMessagesAsRead(contactId, messageIds, platform = 'whatsapp') {
+    try {
+      const apiPrefix = `/api/v1/${platform}`;
+      await api.post(`${apiPrefix}/contacts/${contactId}/messages/read`, {
+        messageIds: Array.from(messageIds)
+      });
+      return true;
+    } catch (error) {
+      logger.error(`[MessageService] Error marking ${platform} messages as read:`, error);
+      throw error;
+    }
+  }
+
+  async refreshMessages(contactId, platform = 'whatsapp') {
+    try {
+      const apiPrefix = `/api/v1/${platform}`;
+      const response = await api.get(`${apiPrefix}/contacts/${contactId}/refreshMessages`);
 
       if (!response.data || typeof response.data !== 'object') {
         throw new Error('Invalid response format');
@@ -160,7 +165,7 @@ class MessageService {
         metadata: response.data.metadata || { count: 0, timestamp: new Date().toISOString() }
       };
     } catch (error) {
-      logger.error('[MessageService] Error refreshing messages:', error);
+      logger.error(`[MessageService] Error refreshing ${platform} messages:`, error);
       throw error;
     }
   }

@@ -4,11 +4,11 @@ import { useSelector, useDispatch } from 'react-redux';
 import { useLogger } from '@/hooks/useLogger';
 import { clearProblematicStorage } from '@/utils/sessionRecovery';
 import { isWhatsAppConnected } from '@/utils/connectionStorage';
-import LavaLamp from '@/components/ui/Loader/LavaLamp';
 import { AuthErrorBoundary } from '@/components/ErrorBoundary';
 import { setCurrentStep, setIsComplete, ONBOARDING_STEPS } from '@/store/slices/onboardingSlice';
 import Dashboard from '@/pages/Dashboard';
 import React from 'react';
+import CentralLoader from '@/components/ui/CentralLoader';
 
 // Use lazy loading for performance
 const Login = lazy(() => import('@/pages/Login'));
@@ -54,6 +54,7 @@ const AppRoutes = () => {
   // Add state to track navigation attempts
   const [navigationAttempts, setNavigationAttempts] = useState(0);
   const [isRouterInitialized, setIsRouterInitialized] = useState(isRouterGloballyInitialized);
+  const [routeTransitioning, setRouteTransitioning] = useState(false);
   const lastInitTimeRef = useRef(Date.now());
   const forceUpdateTimerRef = useRef<any>(null);
   const initializingRef = useRef(false);
@@ -64,6 +65,44 @@ const AppRoutes = () => {
   
   // CRITICAL FIX: Add a ref to track redirects to prevent infinite loops
   const hasRedirectedRef = useRef<Record<string, boolean>>({});
+
+  // Generate appropriate loading messages based on current route and auth state
+  const getLoaderMessage = () => {
+    const path = location.pathname;
+    
+    if (path.includes('/auth/callback')) {
+      return {
+        main: "Completing authentication...",
+        sub: "You'll be redirected in a moment"
+      };
+    }
+    
+    if (!session) {
+      return {
+        main: "Checking authentication...",
+        sub: "Please wait while we verify your session"
+      };
+    }
+    
+    if (path === '/onboarding' || path.includes('/onboarding/')) {
+      return {
+        main: "Preparing your onboarding...",
+        sub: "Setting up your personalized experience"
+      };
+    }
+    
+    if (path === '/dashboard') {
+      return {
+        main: "Loading your dashboard...",
+        sub: "Preparing your personalized workspace"
+      };
+    }
+    
+    return {
+      main: "Loading...",
+      sub: "Please wait while we prepare your experience"
+    };
+  };
 
   // Initialization effect runs once
   useEffect(() => {
@@ -83,17 +122,17 @@ const AppRoutes = () => {
     // Initialize
     const init = async () => {
       try {
-    // CRITICAL FIX: Don't clear localStorage during auth callback
+        // CRITICAL FIX: Don't clear localStorage during auth callback
         const isAuthRoute = location.pathname.includes('/auth/callback');
-    if (!isAuthRoute) {
-      // Clear any problematic localStorage items that might be causing issues
+        if (!isAuthRoute) {
+          // Clear any problematic localStorage items that might be causing issues
           const clearedItems = clearProblematicStorage();
           if (clearedItems.length > 0) {
             logger.info('[AppRoutes] Cleared problematic localStorage items:', clearedItems);
           }
-    } else {
-      logger.info('[AppRoutes] On auth route, skipping localStorage cleanup');
-    }
+        } else {
+          logger.info('[AppRoutes] On auth route, skipping localStorage cleanup');
+        }
 
         // Log initial routing state for debugging
         logger.info('[AppRoutes] Initial routing state:', {
@@ -102,6 +141,9 @@ const AppRoutes = () => {
           onboardingComplete: isComplete,
           currentStep
         });
+        
+        // Set route transitioning to true to show loader
+        setRouteTransitioning(true);
         
         // If the user is authenticated but we're at the root route, redirect immediately
         if (session && (location.pathname === '/' || location.pathname === '')) {
@@ -123,6 +165,11 @@ const AppRoutes = () => {
         isRouterGloballyInitialized = true;
         lastInitTimeRef.current = Date.now();
         initializingRef.current = false;
+        
+        // Give a slight delay before removing the loader to prevent flashing
+        setTimeout(() => {
+          setRouteTransitioning(false);
+        }, 300);
       }
     };
 
@@ -160,11 +207,27 @@ const AppRoutes = () => {
             // The component will render naturally now that isRouterInitialized is true
           }
         }
+        
+        // Reset route transitioning state
+        setRouteTransitioning(false);
       }
     }, 1500);
     
     return () => clearTimeout(timeout);
   }, [isRouterInitialized, logger, session, isComplete, location.pathname]);
+
+  // Listen for route changes to show the loader during transitions
+  useEffect(() => {
+    // Show the loader when starting a navigation
+    setRouteTransitioning(true);
+    
+    // Hide the loader after a short delay
+    const timer = setTimeout(() => {
+      setRouteTransitioning(false);
+    }, 1000); // Adjust timing to ensure components have time to load
+    
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
 
   // Add super robust "last resort" check to force route initialization
   // but make it more reliable to prevent conflicts
@@ -190,6 +253,9 @@ const AppRoutes = () => {
             // Force initialization state to true to prevent getting stuck
             setIsRouterInitialized(true);
             isRouterGloballyInitialized = true;
+            
+            // Reset route transitioning
+            setRouteTransitioning(false);
             
             // Wait a moment before redirecting to ensure state is applied
             setTimeout(() => {
@@ -259,7 +325,7 @@ const AppRoutes = () => {
         ...currentState,
         whatsappConnectedInLocalStorage,
         navigationAttempts
-  });
+      });
       
       // Update ref
       lastStateRef.current = currentState;
@@ -380,39 +446,41 @@ const AppRoutes = () => {
     }
   }, [location.pathname, authRedirectPath, navigationAttempts, logger]);
 
-  // Show loading if router is not initialized
-  if (!isRouterInitialized && !isRouterGloballyInitialized) {
+  // Show global loader based on route transitioning or router initialization
+  const showGlobalLoader = !isRouterInitialized || routeTransitioning;
+  
+  // Get appropriate loader message
+  const loaderMessages = getLoaderMessage();
+
+  // Show the centralized loader when router is not initialized or during route transitions
+  if (showGlobalLoader) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <LavaLamp className="w-[60px] h-[100px]" />
-        <p className="mt-4 text-muted-foreground">Initializing application...</p>
-        <p className="mt-2 text-sm text-muted-foreground/70">
-          {session ? 'Authenticated, preparing your experience...' : 'Checking authentication status...'}
-        </p>
-        <button 
-          onClick={() => {
-            setIsRouterInitialized(true);
-            isRouterGloballyInitialized = true;
-            window.location.href = session ? '/onboarding' : '/login';
-          }}
-          className="mt-6 px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
-        >
-          Continue manually
-        </button>
-      </div>
+      <CentralLoader 
+        message={loaderMessages.main}
+        subMessage={loaderMessages.sub}
+        showButton={navigationAttempts > 2}
+        buttonText="Continue Manually"
+        onButtonClick={() => {
+          setIsRouterInitialized(true);
+          isRouterGloballyInitialized = true;
+          setRouteTransitioning(false);
+          
+          // Determine where to navigate based on auth state
+          const redirectPath = session ? 
+            (isComplete ? '/dashboard' : '/onboarding') : 
+            '/login';
+            
+          window.location.href = redirectPath;
+        }}
+      />
     );
   }
 
-  // Loading component for lazy-loaded routes
+  // Create a consistent suspense fallback using our centralized loader
   const renderLazy = (Component: React.LazyExoticComponent<any>) => (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen bg-background">
-        <LavaLamp className="w-[60px] h-[100px]" />
-        <p className="ml-4 text-muted-foreground">Loading...</p>
-      </div>
-    }>
+    <Suspense fallback={<CentralLoader message="Loading..." />}>
       <AuthErrorBoundary>
-      <Component />
+        <Component />
       </AuthErrorBoundary>
     </Suspense>
   );
@@ -442,10 +510,10 @@ const AppRoutes = () => {
         path="/auth/google/callback"
         element={
           <Suspense fallback={
-            <div className="flex items-center justify-center h-screen bg-background">
-              <LavaLamp className="w-[60px] h-[100px]" />
-              <p className="ml-4 text-muted-foreground">Processing authentication...</p>
-            </div>
+            <CentralLoader 
+              message="Processing authentication..." 
+              subMessage="Completing your Google sign-in"
+            />
           }>
             <AuthErrorBoundary>
               <SimpleAuthCallback />
@@ -457,10 +525,10 @@ const AppRoutes = () => {
         path="/auth/callback"
         element={
           <Suspense fallback={
-            <div className="flex items-center justify-center h-screen bg-background">
-              <LavaLamp className="w-[60px] h-[100px]" />
-              <p className="ml-4 text-muted-foreground">Processing authentication...</p>
-            </div>
+            <CentralLoader 
+              message="Processing authentication..." 
+              subMessage="Please wait while we complete your sign-in"
+            />
           }>
             <AuthErrorBoundary>
               <SimpleAuthCallback />
@@ -500,17 +568,12 @@ const AppRoutes = () => {
           ) : (
             // CRITICAL FIX: Use conditional component to prevent unnecessary redirects
             isRouterInitialized ? (
-            renderLazy(NewOnboarding)
+              renderLazy(NewOnboarding)
             ) : (
-              <div className="flex items-center justify-center h-screen bg-background">
-                <LavaLamp className="w-[60px] h-[100px]" />
-                <div className="ml-4 flex flex-col">
-                  <p className="text-muted-foreground">Loading onboarding...</p>
-                  <p className="text-xs text-muted-foreground/70">
-                    Preparing your experience...
-                  </p>
-                </div>
-              </div>
+              <CentralLoader
+                message="Preparing onboarding..."
+                subMessage="Setting up your personalized experience"
+              />
             )
           )
         }
@@ -528,17 +591,12 @@ const AppRoutes = () => {
           ) : (
             // CRITICAL FIX: Use renderLazy consistently for the same component
             isRouterInitialized ? (
-            renderLazy(NewOnboarding)
+              renderLazy(NewOnboarding)
             ) : (
-              <div className="flex items-center justify-center h-screen bg-background">
-                <LavaLamp className="w-[60px] h-[100px]" />
-                <div className="ml-4 flex flex-col">
-                  <p className="text-muted-foreground">Loading onboarding...</p>
-                  <p className="text-xs text-muted-foreground/70">
-                    Preparing your experience...
-                  </p>
-                </div>
-              </div>
+              <CentralLoader
+                message="Preparing onboarding..."
+                subMessage="Setting up your personalized experience"
+              />
             )
           )
         }

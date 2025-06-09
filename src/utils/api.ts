@@ -1,7 +1,7 @@
 import axios from 'axios';
-import { supabase } from './supabase';
-import { tokenManager } from './tokenManager';
-import logger from './logger';
+import { supabase } from '@/utils/supabase';
+import { tokenManager } from '@/utils/tokenManager';
+import logger from '@/utils/logger';
 
 // Standard response structure
 export const ResponseStatus = {
@@ -145,7 +145,7 @@ let refreshPromise = null;
 let lastRefreshTime = 0;
 const minRefreshInterval = 5000; // 5 seconds
 
-// Add response interceptor to handle token refresh and clean up tracked requests
+// Update the response interceptor to handle auth errors consistently
 api.interceptors.response.use(
   (response) => {
     // CRITICAL FIX: Remove this request from the tracking array
@@ -172,51 +172,51 @@ api.interceptors.response.use(
       }
     }
 
-    // CRITICAL FIX: Improved token refresh handling with multiple safeguards
-    if ((error.response?.status === 401 || error.response?.status === 403) && !originalRequest._retry) {
-      // CRITICAL FIX: Prevent multiple retries of the same request
-      originalRequest._retry = true;
+    // Don't retry if this is already a retry
+    if (originalRequest?._isRetry) {
+      logger.error('[API] Retry failed, triggering session expired event');
+      
+      // Dispatch session-expired event to match our new event handler
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('session-expired'));
+      }
+      
+      return Promise.reject(error);
+    }
 
-      // Dispatch a custom event to notify the SessionExpirationHandler
-      if (error.response?.status === 403 &&
-          typeof originalRequest.url === 'string' &&
-          originalRequest.url.includes('supabase.co/auth/v1')) {
-        logger.warn('[API] Detected Supabase auth 403 error, dispatching session expired event');
-
-        if (typeof window !== 'undefined') {
-          const sessionExpiredEvent = new CustomEvent('supabase-session-expired', {
-            detail: { reason: 'auth-403-error' }
-          });
-          window.dispatchEvent(sessionExpiredEvent);
-          logger.info('[API] Dispatched supabase-session-expired event');
-
-          // Don't attempt to refresh the token if we've already dispatched the session expired event
-          return Promise.reject(error);
-        }
+    // Only handle 401/403 errors
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Don't retry for certain paths
+      const skipRefreshPaths = [
+        '/auth/login',
+        '/auth/logout',
+        '/auth/refresh',
+        '/auth/register'
+      ];
+      
+      if (originalRequest && skipRefreshPaths.some(path => originalRequest.url?.includes(path))) {
+        logger.info(`[API] Skipping token refresh for auth path: ${originalRequest.url}`);
+        return Promise.reject(error);
       }
 
-      // CRITICAL FIX: Prevent too many refresh attempts in a short period
       const now = Date.now();
+
+      // Check if we're refreshing too frequently
       if (now - lastRefreshTime < minRefreshInterval) {
         logger.warn('[API] Token refresh attempted too soon after previous refresh');
         refreshAttempts++;
 
-        // If we've tried too many times in quick succession, show a non-refreshing error
+        // If we've tried too many times in quick succession, trigger session expired
         if (refreshAttempts >= maxRefreshAttempts) {
           logger.error(`[API] Maximum refresh attempts (${maxRefreshAttempts}) reached`);
           refreshAttempts = 0; // Reset for future attempts
 
-          // CRITICAL FIX: Use the global session expired event instead of toast
-          // This will trigger the SessionExpiredModal to show
-          logger.info('[API] Maximum refresh attempts reached, triggering global session expired event');
+          // Dispatch session-expired event to match our new event handler
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('session-expired'));
+            logger.info('[API] Session expired event dispatched due to max refresh attempts');
+          }
 
-          // Dispatch a custom event that the App component will listen for
-          const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-            detail: { reason: 'max_attempts_reached' }
-          });
-          window.dispatchEvent(sessionExpiredEvent);
-
-          // Don't redirect, just return the error
           return Promise.reject(error);
         }
       } else {
@@ -225,9 +225,9 @@ api.interceptors.response.use(
       }
 
       lastRefreshTime = now;
-      logger.info('[API] Received 401 error, attempting to refresh token');
+      logger.info('[API] Received 401/403 error, attempting to refresh token');
 
-      // CRITICAL FIX: Use a single refresh promise for multiple concurrent requests
+      // Use a single refresh promise for multiple concurrent requests
       if (refreshPromise) {
         logger.info('[API] Using existing refresh promise');
         try {
@@ -236,90 +236,52 @@ api.interceptors.response.use(
             logger.info('[API] Token refreshed successfully via shared promise, retrying request');
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+            originalRequest._isRetry = true;
             return api(originalRequest);
           }
         } catch (e) {
           logger.error('[API] Shared refresh promise failed:', e);
-          // Continue to create a new refresh promise
         }
       }
 
       // Create a new refresh promise
-      refreshPromise = (async () => {
-        try {
-          // Force token refresh
-          const newToken = await tokenManager.refreshToken();
-
-          if (newToken) {
-            logger.info('[API] Token refreshed successfully, retrying request');
-            // Update the Authorization header with the new token
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            // Also update the default headers for future requests
-            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-            return newToken;
-          } else {
-            logger.error('[API] Token refresh returned null token');
-            // CRITICAL FIX: Use the global session expired event instead of toast
-            // This will trigger the SessionExpiredModal to show
-
-            // Only trigger if we're not already on the login page and not in a modal
-            if (!window.location.pathname.includes('/login') &&
-                !window.location.pathname.includes('/auth/callback') &&
-                !document.querySelector('.modal-open')) {
-
-              logger.info('[API] Token refresh failed, triggering global session expired event');
-
-              // Dispatch a custom event that the App component will listen for
-              const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-                detail: { reason: 'token_refresh_failed' }
-              });
-              window.dispatchEvent(sessionExpiredEvent);
-
-              // Don't redirect automatically - the modal will handle this
-              // This prevents the jarring page refresh experience
-            }
-            return null;
-          }
-        } catch (refreshError) {
-          logger.error('[API] Token refresh failed:', refreshError);
-          // CRITICAL FIX: Use the global session expired event instead of toast
-          // This will trigger the SessionExpiredModal to show
-
-          // Only trigger if we're not already on the login page and not in a modal
-          if (!window.location.pathname.includes('/login') &&
-              !window.location.pathname.includes('/auth/callback') &&
-              !document.querySelector('.modal-open')) {
-
-            logger.info('[API] Token refresh error, triggering global session expired event');
-
-            // Dispatch a custom event that the App component will listen for
-            const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-              detail: { reason: 'refresh_error' }
-            });
-            window.dispatchEvent(sessionExpiredEvent);
-
-            // Don't redirect automatically - the modal will handle this
-            // This prevents the jarring page refresh experience
-          }
-          return null;
-        } finally {
-          // CRITICAL FIX: Clear the promise reference to allow future refresh attempts
-          setTimeout(() => {
-            refreshPromise = null;
-          }, 100);
-        }
-      })();
-
       try {
+        refreshPromise = tokenManager.refreshToken();
         const newToken = await refreshPromise;
+        refreshPromise = null;
+
         if (newToken) {
+          logger.info('[API] Token refreshed successfully, retrying request');
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+          originalRequest._isRetry = true;
           return api(originalRequest);
+        } else {
+          logger.error('[API] Token refresh returned null token');
+          
+          // Dispatch session-expired event to match our new event handler
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('session-expired'));
+            logger.info('[API] Session expired event dispatched due to null refresh token');
+          }
+
+          return Promise.reject(error);
         }
-      } catch (e) {
-        logger.error('[API] Error waiting for refresh promise:', e);
+      } catch (refreshError) {
+        logger.error('[API] Error refreshing token:', refreshError);
+        refreshPromise = null;
+        
+        // Dispatch session-expired event to match our new event handler
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('session-expired'));
+          logger.info('[API] Session expired event dispatched due to refresh error');
+        }
+
+        return Promise.reject(error);
       }
     }
 
+    // For other errors, simply reject the promise
     return Promise.reject(error);
   }
 );

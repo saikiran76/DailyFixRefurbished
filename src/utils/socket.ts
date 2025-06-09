@@ -3,7 +3,7 @@ import logger from './logger';
 import tokenService from '../services/tokenService';
 
 // Update socket URL configuration to use the API Gateway for all connections
-const getSocketUrl = (platform) => {
+const getSocketUrl = (platform: string) => {
   // Always use the API Gateway for socket connections
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -15,6 +15,12 @@ const getSocketUrl = (platform) => {
   if (platform === 'matrix') {
     socketPath = '/matrix/socket.io';
     logger.info('[Socket] Using matrix socket path');
+  }
+  
+  // For telegram, use the dedicated telegram socket endpoint
+  else if (platform === 'telegram') {
+    socketPath = '/telegram/socket.io';
+    logger.info('[Socket] Using telegram socket path');
   }
 
   // Log which platform we're connecting to (for debugging)
@@ -94,7 +100,13 @@ export const unsubscribeFromDiscordMessages = () => {
   }
 };
 
-export const initializeSocket = async (options = {}) => {
+export const initializeSocket = async (options: { 
+  platform: string;
+  onConnect?: () => void;
+  onDisconnect?: (reason?: string) => void;
+  onError?: (error: any) => void;
+  onAuthError?: () => void;
+} = { platform: 'default' }) => {
   const platform = options.platform || 'default';
   const socketConfig = getSocketUrl(platform);
   const { url, path } = socketConfig;
@@ -197,13 +209,36 @@ export const initializeSocket = async (options = {}) => {
               }
             }
 
-            // If we found a token directly, use it
-            if (token && userId) {
+            // CRITICAL FIX: Allow connection with just a token, even if userId cannot be extracted
+            if (token) {
+              // Try to extract userId from token if not provided directly
+              if (!userId) {
+                try {
+                  // Try to extract userId from JWT token
+                  const tokenParts = token.split('.');
+                  if (tokenParts.length === 3) {
+                    const payload = JSON.parse(atob(tokenParts[1]));
+                    if (payload.sub) {
+                      userId = payload.sub;
+                      logger.info('[Socket] Extracted userId from token payload');
+                    }
+                  }
+                } catch (err) {
+                  logger.warn('[Socket] Failed to extract userId from token:', err);
+                }
+                
+                // If still no userId, use a default value
+                if (!userId) {
+                  userId = 'default_user';
+                  logger.warn('[Socket] Using default userId because none was found');
+                }
+              }
+              
               tokens = {
                 accessToken: token,
                 userId: userId
               };
-              logger.info('[Socket] Using token from localStorage');
+              logger.info('[Socket] Using token from localStorage with userId:', userId);
               break;
             }
 
@@ -366,6 +401,11 @@ export const initializeSocket = async (options = {}) => {
             token: tokens.accessToken,
             userId: tokens.userId
           });
+          
+          // Call the onConnect callback if provided
+          if (options.onConnect && typeof options.onConnect === 'function') {
+            options.onConnect();
+          }
         });
 
         socketInstance.on('connect_error', (error) => {
@@ -383,6 +423,11 @@ export const initializeSocket = async (options = {}) => {
             userId: tokens.userId,
             timestamp: new Date().toISOString()
           })}`);
+          
+          // Call the onError callback if provided
+          if (options.onError && typeof options.onError === 'function') {
+            options.onError(error);
+          }
 
           if (socketState.retryCount >= maxRetries) {
             reject(new Error('Max reconnection attempts reached'));
@@ -401,20 +446,40 @@ export const initializeSocket = async (options = {}) => {
             token: tokens.accessToken,
             userId: tokens.userId
           });
+          
+          // Call the onConnect callback if provided
+          if (options.onConnect && typeof options.onConnect === 'function') {
+            options.onConnect();
+          }
         });
 
         socketInstance.on('reconnect_error', (error) => {
           logger.error(`Socket reconnection error: ${error.message}`);
+          
+          // Call the onError callback if provided
+          if (options.onError && typeof options.onError === 'function') {
+            options.onError(error);
+          }
         });
 
         socketInstance.on('reconnect_failed', () => {
           logger.error('Socket reconnection failed after all attempts');
+          
+          // Call the onError callback if provided
+          if (options.onError && typeof options.onError === 'function') {
+            options.onError(new Error('Socket reconnection failed after all attempts'));
+          }
         });
 
         socketInstance.on('disconnect', (reason) => {
           logger.warn(`Socket disconnected: ${reason}`);
           socketState.state = SOCKET_STATES.DISCONNECTED;
           socketState.authenticated = false;
+          
+          // Call the onDisconnect callback if provided
+          if (options.onDisconnect && typeof options.onDisconnect === 'function') {
+            options.onDisconnect(reason);
+          }
 
           if (reason === 'io server disconnect') {
             // Server initiated disconnect, attempt reconnection
@@ -422,16 +487,23 @@ export const initializeSocket = async (options = {}) => {
           }
         });
 
-        socketInstance.on('reconnect', (attemptNumber) => {
-          logger.info(`Socket reconnected after ${attemptNumber} attempts`);
-        });
-
-        socketInstance.on('reconnect_attempt', (attemptNumber) => {
-          logger.info(`Socket reconnection attempt #${attemptNumber}`);
-        });
-
         socketInstance.on('error', (error) => {
           logger.error(`Socket error: ${error.message}`);
+          
+          // Call the onError callback if provided
+          if (options.onError && typeof options.onError === 'function') {
+            options.onError(error);
+          }
+        });
+        
+        // Listen for auth errors
+        socketInstance.on('auth_error', (error) => {
+          logger.error(`Socket auth error: ${error?.message || 'Unknown auth error'}`);
+          
+          // Call the onAuthError callback if provided
+          if (options.onAuthError && typeof options.onAuthError === 'function') {
+            options.onAuthError();
+          }
         });
 
         // Set up heartbeat

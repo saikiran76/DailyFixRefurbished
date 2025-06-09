@@ -449,7 +449,7 @@ const matrixTokenManager = {
         logger.info('[matrixTokenManager] No credentials found locally, fetching from backend API');
 
         // Import the API utility to ensure proper authentication headers
-        const api = (await import('../utils/api')).default;
+        const api = (await import('./api')).default;
 
         // Call the Matrix status API to get or create credentials using the API utility
         const { data, error } = await api.get('/api/v1/matrix/status');

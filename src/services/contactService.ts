@@ -1,7 +1,7 @@
-import api from '../utils/api';
-import logger from '../utils/logger';
-import { handleError, ErrorTypes, AppError } from '../utils/errorHandler';
-import { store } from '../store/store';
+import api from '@/utils/api';
+import logger from '@/utils/logger';
+import { handleError, ErrorTypes, AppError } from '@/utils/errorHandler';
+// import { getState, getUserId } from '@/utils/storeStatesUtils';
 
 const WHATSAPP_API_PREFIX = '/api/v1/whatsapp';
 const MATRIX_API_PREFIX = '/api/matrix';
@@ -11,8 +11,13 @@ const MATRIX_API_PREFIX = '/api/matrix';
  * @class ContactService
  */
 class ContactService {
+  cache: Map<string, { contacts: any[]; timestamp: number; }>;
+  syncInProgress: Map<string, boolean>;
+  lastSyncTime: Map<string, number>;
+  CACHE_TTL: number;
+
   constructor() {
-    this.cache = new Map();
+    this.cache = new Map<string, { contacts: any[], timestamp: number }>();
     this.syncInProgress = new Map();
     this.lastSyncTime = new Map();
     this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -21,7 +26,7 @@ class ContactService {
   /**
    * Validates and returns cached contacts if available
    */
-  _getCachedContacts(userId) {
+  _getCachedContacts(userId: string) {
     const cached = this.cache.get(userId);
     if (!cached) return null;
 
@@ -59,74 +64,79 @@ class ContactService {
   /**
    * Gets contacts for the current user with proper sync state handling
    */
-  async getCurrentUserContacts() {
+  async getCurrentUserContacts(userId: string, isWhatsAppConnected: boolean, platform: string = 'whatsapp') {
     try {
-      const state = store.getState();
-      const userId = state.auth.session?.user?.id;
-
       if (!userId) {
         logger.warn('[ContactService] No authenticated user found');
         throw new AppError(ErrorTypes.AUTH, 'No authenticated user found');
       }
 
-      logger.info('[ContactService] Fetching contacts for user:', userId);
+      // CRITICAL FIX: Check if we're requesting the correct platform
+      const activeContactList = localStorage.getItem('dailyfix_active_platform');
+      if (activeContactList && activeContactList !== platform) {
+        logger.info(`[ContactService] Requested contacts for ${platform} but active platform is ${activeContactList}, returning empty list`);
+        return { contacts: [] };
+      }
+
+      logger.info(`[ContactService] Fetching ${platform} contacts for user:`, userId);
 
       // Check if sync is in progress
       if (this.syncInProgress.get(userId)) {
-        logger.info('[ContactService] Sync in progress for user:', userId);
+        logger.info(`[ContactService] Sync in progress for user:`, userId);
         return { inProgress: true };
       }
 
       // Try cache only if sync is not in progress and cache is valid
       const cachedContacts = this._getCachedContacts(userId);
       if (cachedContacts) {
-        logger.info('[ContactService] Returning cached contacts for user:', userId);
+        logger.info(`[ContactService] Returning cached ${platform} contacts for user:`, userId);
         return { contacts: cachedContacts };
       }
 
       // If no cache, initiate a fresh fetch
-      return this.getUserContacts(userId);
+      return this.getUserContacts(userId, isWhatsAppConnected, platform);
     } catch (error) {
-      logger.error('[ContactService] Error fetching current user contacts:', error);
-      throw handleError(error, 'Failed to fetch current user contacts');
+      logger.error(`[ContactService] Error fetching ${platform} contacts for user:`, error);
+      throw handleError(error, `Failed to fetch ${platform} contacts`);
     }
   }
 
   /**
    * Gets contacts for a specific user
    */
-  async getUserContacts(userId) {
+  async getUserContacts(userId: string, isWhatsAppConnected: boolean, platform: string = 'whatsapp') {
     if (!userId) {
       throw new AppError(ErrorTypes.VALIDATION, 'User ID is required');
     }
 
     try {
-      // CRITICAL FIX: Check if WhatsApp is connected before making API requests
-      const state = store.getState();
-      const { whatsappConnected, accounts } = state.onboarding;
+      // CRITICAL FIX: Check if this is the active platform
+      const activeContactList = localStorage.getItem('dailyfix_active_platform');
+      if (activeContactList && activeContactList !== platform) {
+        logger.info(`[ContactService] Requested contacts for ${platform} but active platform is ${activeContactList}, returning empty list`);
+        return { contacts: [] };
+      }
 
-      // Check if WhatsApp is connected using multiple sources
-      const isWhatsAppConnected = whatsappConnected ||
-                                accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
-
-      if (!isWhatsAppConnected) {
+      // Check if platform is connected
+      if (platform === 'whatsapp' && !isWhatsAppConnected) {
         logger.info('[ContactService] WhatsApp is not connected, returning empty contacts list');
         return { contacts: [] };
       }
 
-      // Only proceed with WhatsApp API request if WhatsApp is connected
-      logger.info('[ContactService] WhatsApp is connected, fetching contacts');
-      const response = await api.get(`${WHATSAPP_API_PREFIX}/contacts`);
+      // Only proceed with API request if platform is connected
+      logger.info(`[ContactService] ${platform} is connected, fetching contacts`);
+      const apiPrefix = platform === 'whatsapp' ? WHATSAPP_API_PREFIX : `/api/v1/${platform}`;
+      const response = await api.get(`${apiPrefix}/contacts`);
 
       // Log the response for debugging
-      logger.info('[ContactService] Raw API response:', response?.data);
+      logger.info(`[ContactService] Raw ${platform} API response:`, response?.data);
 
       // Check for different possible response structures
       const contacts = response?.data?.data;
 
       if (!contacts || !Array.isArray(contacts)) {
-        logger.error('[ContactService] Invalid response structure:', response?.data);
-        throw new AppError(ErrorTypes.API, 'Invalid response from contacts API');
+        logger.error(`[ContactService] Invalid ${platform} response structure:`, response?.data);
+        throw new AppError(ErrorTypes.API, `Invalid response from ${platform} contacts API`);
       }
 
       // Cache the results
@@ -135,33 +145,32 @@ class ContactService {
         timestamp: Date.now()
       });
 
-      logger.info('[ContactService] Successfully fetched contacts for user:', userId);
+      logger.info(`[ContactService] Successfully fetched ${platform} contacts for user:`, userId);
       return { contacts: contacts };
     } catch (error) {
-      logger.error('[ContactService] Error fetching user contacts:', {
+      logger.error(`[ContactService] Error fetching ${platform} contacts:`, {
         error: error.message,
         stack: error.stack,
         userId
       });
-      throw handleError(error, 'Failed to fetch user contacts');
+      throw handleError(error, `Failed to fetch ${platform} contacts`);
     }
   }
 
   // fresh sync request - onDemand
 
-  async performFreshSync() {
+  async performFreshSync(userId: string, isWhatsAppConnected: boolean) {
     try {
-      const state = store.getState();
-      const userId = state.auth.session?.user?.id;
-      const { whatsappConnected, accounts } = state.onboarding;
+      // const userId = state.auth.session?.user?.id;
+      // const { whatsappConnected, accounts } = state.onboarding;
 
       if (!userId) {
         throw new AppError(ErrorTypes.AUTH, 'No authenticated user found');
       }
 
       // CRITICAL FIX: Check if WhatsApp is connected before making API requests
-      const isWhatsAppConnected = whatsappConnected ||
-                              accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
+      // const isWhatsAppConnected = whatsappConnected ||
+      //                         accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
 
       if (!isWhatsAppConnected) {
         logger.info('[ContactService] WhatsApp is not connected, skipping fresh sync');
@@ -222,7 +231,7 @@ class ContactService {
    * @param {string} contactId - The contact ID to sync
    * @returns {Promise<Object>} Sync result
    */
-  async syncContact(contactId) {
+  async syncContact(contactId: string, isWhatsAppConnected: boolean) {
     if (!contactId) {
       throw new AppError(ErrorTypes.VALIDATION, 'Contact ID is required');
     }
@@ -234,12 +243,12 @@ class ContactService {
 
     try {
       // CRITICAL FIX: Check if WhatsApp is connected before making API requests
-      const state = store.getState();
-      const { whatsappConnected, accounts } = state.onboarding;
+      // const state = getState();
+      // const { whatsappConnected, accounts } = state.onboarding;
 
       // Check if WhatsApp is connected using multiple sources
-      const isWhatsAppConnected = whatsappConnected ||
-                              accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
+      // const isWhatsAppConnected = whatsappConnected ||
+      //                         accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
 
       if (!isWhatsAppConnected) {
         logger.info('[ContactService] WhatsApp is not connected, skipping contact sync');
@@ -305,7 +314,7 @@ class ContactService {
    * Clears the contact cache for a specific user or all users
    * @param {string} [userId] - Optional user ID to clear specific cache
    */
-  clearCache(userId = null) {
+  clearCache(userId: string | null) {
     if (userId) {
       this.cache.delete(userId);
       logger.info('[ContactService] Cleared cache for user:', userId);

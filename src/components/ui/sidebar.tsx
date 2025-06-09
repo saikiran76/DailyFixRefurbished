@@ -1,7 +1,10 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva } from "class-variance-authority";
-import { PanelLeftIcon } from "lucide-react"
+import { PanelLeftIcon, LogOut, Settings, User } from "lucide-react"
+import { useSelector, useDispatch } from "react-redux"
+import { useNavigate } from "react-router-dom"
+import type { AppDispatch } from "@/store/store"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -22,6 +25,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { signOut } from "@/store/slices/authSlice"
+import { 
+  selectUser, 
+  selectSession
+} from "@/store/slices/authSlice"
+import { 
+  selectOnboardingState, 
+  selectWhatsappSetup 
+} from "@/store/slices/onboardingSlice"
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state"
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
@@ -261,8 +274,7 @@ function SidebarRail({
       title="Toggle Sidebar"
       className={cn(
         "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
-        "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
-        "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
+        "in-data-[side=left][data-state=collapsed]_&]:cursor-e-resize in-data-[side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
@@ -319,11 +331,14 @@ function SidebarFooter({
   ...props
 }) {
   return (
-    (<div
+    <div
       data-slot="sidebar-footer"
       data-sidebar="footer"
       className={cn("flex flex-col gap-2 p-2", className)}
-      {...props} />)
+      {...props}>
+      <SidebarSeparator />
+      <SidebarAccount />
+    </div>
   );
 }
 
@@ -656,6 +671,106 @@ function SidebarMenuSubButton({
   );
 }
 
+function SidebarAccount() {
+  const dispatch = useDispatch<AppDispatch>()
+  const navigate = useNavigate()
+  const user = useSelector(selectUser)
+  const onboardingState = useSelector(selectOnboardingState)
+  const { connectedPlatforms = [], whatsappConnected } = onboardingState || {}
+  
+  // Get user initials for avatar fallback
+  const getUserInitials = (): string => {
+    if (!user || !user.email) return "DF"
+    return user.email.substring(0, 2).toUpperCase()
+  }
+  
+  // Get platform status badge
+  const getPlatformStatus = (platform: string) => {
+    if (platform === 'whatsapp') {
+      return whatsappConnected ? 
+        <span className="bg-green-500 h-2 w-2 rounded-full block absolute -bottom-0.5 -right-0.5 border border-black"></span> : 
+        <span className="bg-red-500 h-2 w-2 rounded-full block absolute -bottom-0.5 -right-0.5 border border-black"></span>
+    }
+    return null
+  }
+  
+  const handleSignOut = () => {
+    dispatch(signOut())
+    navigate("/login")
+  }
+
+  return (
+    <div className="flex flex-col space-y-2 p-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <Avatar className="h-8 w-8">
+              {user?.user_metadata?.avatar_url ? (
+                <AvatarImage src={user.user_metadata.avatar_url} alt="User" />
+              ) : null}
+              <AvatarFallback>{getUserInitials()}</AvatarFallback>
+            </Avatar>
+          </div>
+          <div className="flex flex-col overflow-hidden">
+            <p className="text-sm font-medium truncate">
+              {user?.email || "User"}
+            </p>
+            <p className="text-xs text-gray-500 truncate">
+              {connectedPlatforms.length} Connected {connectedPlatforms.length === 1 ? "Platform" : "Platforms"}
+            </p>
+          </div>
+        </div>
+        <div className="flex space-x-1">
+          <Button
+            onClick={() => navigate("/settings")}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={handleSignOut}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Sign Out"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+      
+      {/* Connected platforms */}
+      {connectedPlatforms.length > 0 && (
+        <div className="flex space-x-2 mt-2">
+          {connectedPlatforms.includes('whatsapp') && (
+            <div className="relative">
+              <img 
+                src="/icons/whatsapp.svg" 
+                alt="WhatsApp" 
+                className="h-5 w-5" 
+              />
+              {getPlatformStatus('whatsapp')}
+            </div>
+          )}
+          {connectedPlatforms.includes('matrix') && (
+            <div className="relative">
+              <img 
+                src="/icons/matrix.svg" 
+                alt="Matrix" 
+                className="h-5 w-5" 
+              />
+              {getPlatformStatus('matrix')}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export {
   Sidebar,
   SidebarContent,
@@ -680,5 +795,6 @@ export {
   SidebarRail,
   SidebarSeparator,
   SidebarTrigger,
+  SidebarAccount,
   useSidebar,
 }

@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import contactService from '../../services/contactService';
-import logger from '../../utils/logger';
+import contactService from '@/services/contactService';
+import logger from '@/utils/logger';
+import { isWhatsAppConnected } from '@/utils/connectionStorage';
 
 // Add priority constants
 export const PRIORITY_LEVELS = {
@@ -12,92 +13,111 @@ export const PRIORITY_LEVELS = {
 // Async thunks
 export const fetchContacts = createAsyncThunk(
   'contacts/fetchAll',
-  async (userId, { rejectWithValue, getState }) => {
+  async (params: { userId: string, platform?: string }, { rejectWithValue }) => {
     try {
-      // CRITICAL FIX: Check if WhatsApp is connected before fetching contacts
-      const state = getState();
-      const { whatsappConnected, accounts } = state.onboarding;
+      const { userId, platform = 'whatsapp' } = params;
+      
+      // Check if requested platform matches active platform
+      const activeContactList = localStorage.getItem('dailyfix_active_platform');
+      if (activeContactList && activeContactList !== platform) {
+        logger.info(`[Contacts] Requested contacts for ${platform} but active platform is ${activeContactList}, returning empty list`);
+        return { contacts: [] };
+      }
+      
+      // Check if platform is connected using platform-specific connection check
+      let isPlatformConnected = false;
+      if (platform === 'whatsapp') {
+        isPlatformConnected = isWhatsAppConnected(userId);
+      } else if (platform === 'telegram') {
+        // Add function to check if telegram is connected from connectionStorage
+        isPlatformConnected = true; // Replace with actual telegram connection check
+      }
 
-      // Check if WhatsApp is connected using multiple sources
-      const isWhatsAppConnected = whatsappConnected ||
-                              accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
-
-      if (!isWhatsAppConnected) {
-        logger.info('[Contacts] WhatsApp is not connected, returning empty contacts list');
+      if (!isPlatformConnected) {
+        logger.info(`[Contacts] ${platform} is not connected, returning empty contacts list`);
         return { contacts: [] };
       }
 
-      logger.info('[Contacts] WhatsApp is connected, fetching contacts for user:', userId);
-      const result = await contactService.getCurrentUserContacts();
+      logger.info(`[Contacts] ${platform} is connected, fetching contacts for user:`, userId);
+      const result = await contactService.getCurrentUserContacts(userId, isPlatformConnected, platform);
 
       // Handle in-progress sync case
       if (result.inProgress) {
         return { inProgress: true, contacts: [] };
       }
 
-      logger.info('[Contacts] Fetched contacts:', result.contacts?.length);
+      logger.info(`[Contacts] Fetched ${platform} contacts:`, result.contacts?.length);
       return { contacts: result.contacts || [] };
-    } catch (error) {
+    } catch (error: any) {
       logger.info('[Contacts] Failed to fetch contacts:', error);
       return rejectWithValue(error.message);
     }
   }
 );
 
-// freshSync Thunk
+// freshSync Thunk - FpRpRWb#hq$6Bn4
 export const freshSyncContacts = createAsyncThunk(
   'contacts/freshSync',
-  async (_, { rejectWithValue, getState }) => {
+  async (params: { userId: string, platform?: string }, { rejectWithValue }) => {
     try {
-      // CRITICAL FIX: Check if WhatsApp is connected before performing fresh sync
-      const state = getState();
-      const { whatsappConnected, accounts } = state.onboarding;
+      const { userId, platform = 'whatsapp' } = params;
+      
+      // Check if requested platform matches active platform
+      const activeContactList = localStorage.getItem('dailyfix_active_platform');
+      if (activeContactList && activeContactList !== platform) {
+        logger.info(`[Contacts] Requested fresh sync for ${platform} but active platform is ${activeContactList}, skipping sync`);
+        return [];
+      }
+      
+      // Check if platform is connected using platform-specific connection check
+      let isPlatformConnected = false;
+      if (platform === 'whatsapp') {
+        isPlatformConnected = isWhatsAppConnected(userId);
+      } else if (platform === 'telegram') {
+        // Add function to check if telegram is connected from connectionStorage
+        isPlatformConnected = true; // Replace with actual telegram connection check
+      }
 
-      // Check if WhatsApp is connected using multiple sources
-      const isWhatsAppConnected = whatsappConnected ||
-                              accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
-
-      if (!isWhatsAppConnected) {
-        logger.info('[Contacts] WhatsApp is not connected, skipping fresh sync');
+      if (!isPlatformConnected) {
+        logger.info(`[Contacts] ${platform} is not connected, skipping fresh sync`);
         return [];
       }
 
-      logger.info('[Contacts] WhatsApp is connected, performing fresh sync');
-      const result = await contactService.performFreshSync();
+      logger.info(`[Contacts] ${platform} is connected, performing fresh sync`);
+      const result = await contactService.performFreshSync(userId, isPlatformConnected);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       logger.error('[Contacts] Fresh sync failed:', error);
       return rejectWithValue(error.message);
     }
   }
 );
 
-export const syncContact = createAsyncThunk(
-  'contacts/sync',
-  async (contactId, { rejectWithValue, getState }) => {
-    try {
-      // CRITICAL FIX: Check if WhatsApp is connected before syncing contact
-      const state = getState();
-      const { whatsappConnected, accounts } = state.onboarding;
+// export const syncContact = createAsyncThunk(
+//   'contacts/sync',
+//   async (contactId: string, userId: string, { rejectWithValue }) => {
+//     try {
+//       // CRITICAL FIX: Check if WhatsApp is connected before syncing contact
+//       // const state = getState();
+//       // const { whatsappConnected, accounts } = state.onboarding;
 
-      // Check if WhatsApp is connected using multiple sources
-      const isWhatsAppConnected = whatsappConnected ||
-                              accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
+//       // Check if WhatsApp is connected using multiple sources
+//       const isWhatsAppActive: boolean = isWhatsAppConnected(userId);
 
-      if (!isWhatsAppConnected) {
-        logger.info('[Contacts] WhatsApp is not connected, skipping contact sync');
-        return { status: 'skipped', reason: 'whatsapp_not_connected' };
-      }
+//       if (!isWhatsAppActive) {
+//         logger.info('[Contacts] WhatsApp is not connected, skipping contact sync');
+//         return { status: 'skipped', reason: 'whatsapp_not_connected' };
+//       }
 
-      logger.info('[Contacts] WhatsApp is connected, syncing contact:', contactId);
-      const result = await contactService.syncContact(contactId);
-      return result;
-    } catch (error) {
-      logger.error('[ContactSlice] Failed to sync contact:', error);
-      return rejectWithValue(error.message);
-    }
-  }
-);
+//       logger.info('[Contacts] WhatsApp is connected, syncing contact:', contactId);
+//       const result = await contactService.syncContact(contactId, isWhatsAppActive);
+//       return result;
+//     } catch (error) {
+//       logger.error('[ContactSlice] Failed to sync contact:', error);
+//       return rejectWithValue(error.message);
+//     }
+//   }
+// );
 
 // export const updateContactStatus = createAsyncThunk(
 //   'contacts/updateStatus',
@@ -117,14 +137,14 @@ export const updateContactPriority = createAsyncThunk(
   'contacts/updatePriority',
   async ({ contactId, priority }, { rejectWithValue, getState }) => {
     try {
-      const contact = getState().contacts.items.find(c => c.id === contactId);
+      const contact = getState().contacts.items.find((c: any) => c.id === contactId);
       if (!contact) {
         throw new Error('Contact not found');
       }
 
       // Return the priority update
       return { contactId, priority, timestamp: Date.now() };
-    } catch (error) {
+    } catch (error: any) {
       return rejectWithValue(error.message);
     }
   }
@@ -286,21 +306,21 @@ const contactSlice = createSlice({
         logger.info('[Contacts] Contacts fetch failed:', action.payload);
       })
       // Sync contacts
-      .addCase(syncContact.pending, (state) => {
-        state.syncStatus.inProgress = true;
-        state.syncStatus.error = null;
-      })
-      .addCase(syncContact.fulfilled, (state, action) => {
-        state.syncStatus.inProgress = false;
-        state.syncStatus.lastSyncTime = Date.now();
-        if (action.payload.contacts) {
-          state.items = action.payload.contacts;
-        }
-      })
-      .addCase(syncContact.rejected, (state, action) => {
-        state.syncStatus.inProgress = false;
-        state.syncStatus.error = action.payload || 'Failed to sync contacts';
-      })
+      // .addCase(syncContact.pending, (state) => {
+      //   state.syncStatus.inProgress = true;
+      //   state.syncStatus.error = null;
+      // })
+      // .addCase(syncContact.fulfilled, (state, action) => {
+      //   state.syncStatus.inProgress = false;
+      //   state.syncStatus.lastSyncTime = Date.now();
+      //   if (action.payload.contacts) {
+      //     state.items = action.payload.contacts;
+      //   }
+      // })
+      // .addCase(syncContact.rejected, (state, action) => {
+      //   state.syncStatus.inProgress = false;
+      //   state.syncStatus.error = action.payload || 'Failed to sync contacts';
+      // })
       // Handle priority update
       .addCase(updateContactPriority.fulfilled, (state, action) => {
         const { contactId, priority, timestamp } = action.payload;

@@ -2,6 +2,35 @@ import logger from '../utils/logger';
 import roomListManager from '../utils/roomListManager';
 // import slidingSyncManager from '../utils/SlidingSyncManager';
 import { getSocket, disconnectSocket } from '../utils/socketManager';
+import { 
+  isWhatsAppConnected,
+  getWhatsAppConnectionStatus,
+  isTelegramConnected,
+  getTelegramConnectionStatus,
+  saveTelegramConnectionStatus,
+  saveWhatsAppConnectionStatus
+} from '../utils/connectionStorage';
+
+// Add interface for global window object to include matrixClient and toast
+declare global {
+  interface Window {
+    matrixClient: any;
+    toast?: {
+      error: (message: string) => void;
+      success: (message: string) => void;
+    };
+  }
+}
+
+/**
+ * Platform state type
+ */
+interface PlatformState {
+  active: boolean;
+  lastInitialized: Date;
+  lastCleanup?: Date;
+  options: any;
+}
 
 /**
  * PlatformManager service
@@ -10,9 +39,11 @@ import { getSocket, disconnectSocket } from '../utils/socketManager';
 class PlatformManager {
   private activePlatform: string | null = null;
   public availablePlatforms: string[] = ['whatsapp', 'telegram'];
-  private platformStates: Map<string, { active: boolean, lastInitialized: Date, options: any }> = new Map();
-  private platformInitializers: { [key: string]: () => Promise<boolean> } = {};
+  private platformStates: Map<string, PlatformState> = new Map();
+  private platformInitializers: { [key: string]: (options?: any) => Promise<boolean> } = {};
   private platformCleanupHandlers: { [key: string]: () => Promise<boolean> } = {};
+  private isCheckingStatus: boolean = false;
+  private isVerifyingConnection: boolean = false;
 
   constructor() {
     this.activePlatform = null;
@@ -27,6 +58,38 @@ class PlatformManager {
     };
 
     logger.info('[PlatformManager] Service initialized');
+  }
+
+  /**
+   * Get whether we're currently checking platform status
+   * @returns {boolean} Status checking state
+   */
+  isStatusCheckInProgress(): boolean {
+    return this.isCheckingStatus;
+  }
+
+  /**
+   * Set status checking state
+   * @param {boolean} checking - Whether we're checking status
+   */
+  setStatusChecking(checking: boolean): void {
+    this.isCheckingStatus = checking;
+  }
+  
+  /**
+   * Check if a connection verification is in progress
+   * @returns {boolean} Verification status
+   */
+  isVerificationInProgress(): boolean {
+    return this.isVerifyingConnection;
+  }
+  
+  /**
+   * Set verification state
+   * @param {boolean} verifying - Whether verification is in progress
+   */
+  setVerifyingConnection(verifying: boolean): void {
+    this.isVerifyingConnection = verifying;
   }
 
   /**
@@ -126,7 +189,7 @@ class PlatformManager {
 
       // Update platform state
       if (this.platformStates.has(platform)) {
-        const state = this.platformStates.get(platform);
+        const state = this.platformStates.get(platform)!;
         this.platformStates.set(platform, {
           ...state,
           active: false,
@@ -206,6 +269,11 @@ class PlatformManager {
       // We're no longer using sliding sync as it's causing disruptions
       // The sliding sync utility files are still available but we're not using them
       logger.info('[PlatformManager] Sliding sync disabled - using traditional sync methods instead');
+      
+      // Verify Telegram connection status with the server
+      if (!options.skipVerification) {
+        this.verifyTelegramConnection();
+      }
 
       logger.info('[PlatformManager] Telegram platform initialized successfully');
       return true;
@@ -214,15 +282,92 @@ class PlatformManager {
       return false;
     }
   }
+  
+  /**
+   * Verify Telegram connection with the server
+   * This ensures our local connection status matches the actual bridge status
+   */
+  async verifyTelegramConnection(): Promise<void> {
+    try {
+      if (this.isVerifyingConnection) {
+        logger.info('[PlatformManager] Telegram verification already in progress, skipping');
+        return;
+      }
+      
+      this.setVerifyingConnection(true);
+      logger.info('[PlatformManager] Verifying Telegram connection status with server');
+      
+      // Get the current user ID from localStorage
+      const authDataStr = localStorage.getItem('dailyfix_auth');
+      if (!authDataStr) {
+        logger.warn('[PlatformManager] No auth data found for Telegram verification');
+        this.setVerifyingConnection(false);
+        return;
+      }
+      
+      const authData = JSON.parse(authDataStr);
+      const userId = authData?.user?.id;
+      if (!userId) {
+        logger.warn('[PlatformManager] No user ID found for Telegram verification');
+        this.setVerifyingConnection(false);
+        return;
+      }
+      
+      // Check with the API if Telegram is actually connected
+      const response = await fetch('/api/v1/matrix/telegram/status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error verifying Telegram: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      logger.info('[PlatformManager] Telegram verification response:', data);
+      
+      // Get current local status
+      const currentStatus = getTelegramConnectionStatus(userId);
+      
+      // Update local status based on server response
+      const isConnected = data.status === 'active';
+      const isVerified = true; // We've now verified the status with the server
+      
+      // Update local connection status
+      saveTelegramConnectionStatus(userId, {
+        isConnected,
+        verified: isVerified,
+        lastVerified: Date.now(),
+        verificationAttempts: 0
+      });
+      
+      logger.info(`[PlatformManager] Telegram verification complete: connected=${isConnected}, verified=${isVerified}`);
+      
+      // If status changed, dispatch event to notify components
+      if (currentStatus?.isConnected !== isConnected) {
+        window.dispatchEvent(new CustomEvent('platform-connection-changed'));
+        
+        // Show toast if disconnected
+        if (!isConnected && currentStatus?.isConnected) {
+          if (window.toast) {
+            window.toast.error('Telegram connection lost. Please reconnect in settings.');
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('[PlatformManager] Error verifying Telegram connection:', error);
+    } finally {
+      this.setVerifyingConnection(false);
+    }
+  }
 
   /**
    * Clean up Telegram platform
    * @returns {Promise<boolean>} Success status
    */
-  /**
- * Clean up Telegram platform
- * @returns {Promise<boolean>} Success status
- */
   async cleanupTelegram(): Promise<boolean> {
     try {
       logger.info('[PlatformManager] Cleaning up Telegram platform');
@@ -274,12 +419,7 @@ class PlatformManager {
    * @param {Object} options - WhatsApp initialization options
    * @returns {Promise<boolean>} Success status
    */
-  /**
- * Initialize WhatsApp platform
- * @param {Object} options - WhatsApp initialization options
- * @returns {Promise<boolean>} Success status
- */
-  async initializeWhatsApp(options = {}) {
+  async initializeWhatsApp(options: any = {}): Promise<boolean> {
     try {
       logger.info('[PlatformManager] Initializing WhatsApp platform');
 
@@ -299,6 +439,11 @@ class PlatformManager {
           logger.error('[PlatformManager] Error initializing socket directly:', socketError);
         }
       }
+      
+      // Verify WhatsApp connection status with the server
+      if (!options.skipVerification) {
+        this.verifyWhatsAppConnection();
+      }
 
       logger.info('[PlatformManager] WhatsApp platform initialized successfully');
       return true;
@@ -307,12 +452,93 @@ class PlatformManager {
       return false;
     }
   }
+  
+  /**
+   * Verify WhatsApp connection with the server
+   * This ensures our local connection status matches the actual bridge status
+   */
+  async verifyWhatsAppConnection(): Promise<void> {
+    try {
+      if (this.isVerifyingConnection) {
+        logger.info('[PlatformManager] WhatsApp verification already in progress, skipping');
+        return;
+      }
+      
+      this.setVerifyingConnection(true);
+      logger.info('[PlatformManager] Verifying WhatsApp connection status with server');
+      
+      // Get the current user ID from localStorage
+      const authDataStr = localStorage.getItem('dailyfix_auth');
+      if (!authDataStr) {
+        logger.warn('[PlatformManager] No auth data found for WhatsApp verification');
+        this.setVerifyingConnection(false);
+        return;
+      }
+      
+      const authData = JSON.parse(authDataStr);
+      const userId = authData?.user?.id;
+      if (!userId) {
+        logger.warn('[PlatformManager] No user ID found for WhatsApp verification');
+        this.setVerifyingConnection(false);
+        return;
+      }
+      
+      // Check with the API if WhatsApp is actually connected
+      const response = await fetch('/api/v1/matrix/whatsapp/status', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error verifying WhatsApp: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      logger.info('[PlatformManager] WhatsApp verification response:', data);
+      
+      // Get current local status
+      const currentStatus = getWhatsAppConnectionStatus(userId);
+      
+      // Update local status based on server response
+      const isConnected = data.status === 'active';
+      const isVerified = true; // We've now verified the status with the server
+      
+      // Update local connection status
+      saveWhatsAppConnectionStatus(userId, {
+        isConnected,
+        verified: isVerified,
+        lastVerified: Date.now(),
+        verificationAttempts: 0
+      });
+      
+      logger.info(`[PlatformManager] WhatsApp verification complete: connected=${isConnected}, verified=${isVerified}`);
+      
+      // If status changed, dispatch event to notify components
+      if (currentStatus?.isConnected !== isConnected) {
+        window.dispatchEvent(new CustomEvent('platform-connection-changed'));
+        
+        // Show toast if disconnected
+        if (!isConnected && currentStatus?.isConnected) {
+          if (window.toast) {
+            window.toast.error('WhatsApp connection lost. Please reconnect in settings.');
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('[PlatformManager] Error verifying WhatsApp connection:', error);
+    } finally {
+      this.setVerifyingConnection(false);
+    }
+  }
 
   /**
    * Clean up WhatsApp platform
    * @returns {Promise<boolean>} Success status
    */
-  async cleanupWhatsApp() {
+  async cleanupWhatsApp(): Promise<boolean> {
     try {
       logger.info('[PlatformManager] Cleaning up WhatsApp platform');
 
@@ -331,20 +557,125 @@ class PlatformManager {
   }
 
   /**
-   * Get the currently active platform
+   * Get the currently active platform based on the most recently switched to platform
+   * This may differ from actual connection status which should be checked with getAllActivePlatforms()
    * @returns {string|null} Active platform or null if none
    */
-  getActivePlatform() {
-    return this.activePlatform;
+  getActivePlatform(): string | null {
+    // First check if we have a currently set active platform
+    if (this.activePlatform) {
+      return this.activePlatform;
+    }
+
+    // Otherwise, check if we have any connected platforms based on localStorage
+    const activePlatforms = this.getAllActivePlatforms();
+    return activePlatforms.length > 0 ? activePlatforms[0] : null;
   }
 
   /**
-   * Check if a platform is active
+   * Get all currently active/connected platforms based on actual connection status
+   * @param {boolean} [verifiedOnly=false] - Whether to only include verified connections
+   * @returns {string[]} Array of active platform names
+   */
+  getAllActivePlatforms(verifiedOnly: boolean = false): string[] {
+    const activePlatforms: string[] = [];
+    
+    try {
+      // Get the current user ID from localStorage to check connection status
+      const authDataStr = localStorage.getItem('dailyfix_auth');
+      if (authDataStr) {
+        const authData = JSON.parse(authDataStr);
+        const userId = authData.user?.id;
+        
+        if (userId) {
+          // Check WhatsApp connection status with verification if requested
+          if (verifiedOnly) {
+            const whatsappStatus = getWhatsAppConnectionStatus(userId);
+            if (whatsappStatus && whatsappStatus.isConnected && whatsappStatus.verified) {
+              activePlatforms.push('whatsapp');
+            }
+          } else if (isWhatsAppConnected(userId)) {
+            activePlatforms.push('whatsapp');
+          }
+          
+          // Check Telegram connection status with verification if requested
+          if (verifiedOnly) {
+            const telegramStatus = getTelegramConnectionStatus(userId);
+            if (telegramStatus && telegramStatus.isConnected && telegramStatus.verified) {
+              activePlatforms.push('telegram');
+            }
+          } else if (isTelegramConnected(userId)) {
+            activePlatforms.push('telegram');
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('[PlatformManager] Error getting active platforms:', error);
+    }
+    
+    return activePlatforms;
+  }
+
+  /**
+   * Check if a platform is active based on actual connection status
    * @param {string} platform - Platform to check
+   * @param {boolean} [verifiedOnly=false] - Whether to only consider verified connections
    * @returns {boolean} Whether the platform is active
    */
-  isPlatformActive(platform) {
-    return this.activePlatform === platform;
+  isPlatformActive(platform: string, verifiedOnly: boolean = false): boolean {
+    // First check our internal state
+    if (this.activePlatform === platform) {
+      return true;
+    }
+    
+    // Then check localStorage-based connection status with verification if requested
+    return this.getAllActivePlatforms(verifiedOnly).includes(platform);
+  }
+
+  /**
+   * Check if WhatsApp connection is verified
+   * @returns {boolean} Whether WhatsApp connection is verified
+   */
+  isWhatsAppVerified(): boolean {
+    try {
+      const authDataStr = localStorage.getItem('dailyfix_auth');
+      if (authDataStr) {
+        const authData = JSON.parse(authDataStr);
+        const userId = authData.user?.id;
+        
+        if (userId) {
+          const detailedStatus = getWhatsAppConnectionStatus(userId);
+          return detailedStatus ? detailedStatus.verified : false;
+        }
+      }
+      return false;
+    } catch (error) {
+      logger.error('[PlatformManager] Error checking WhatsApp verification:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Check if Telegram connection is verified
+   * @returns {boolean} Whether Telegram connection is verified
+   */
+  isTelegramVerified(): boolean {
+    try {
+      const authDataStr = localStorage.getItem('dailyfix_auth');
+      if (authDataStr) {
+        const authData = JSON.parse(authDataStr);
+        const userId = authData.user?.id;
+        
+        if (userId) {
+          const detailedStatus = getTelegramConnectionStatus(userId);
+          return detailedStatus ? detailedStatus.verified : false;
+        }
+      }
+      return false;
+    } catch (error) {
+      logger.error('[PlatformManager] Error checking Telegram verification:', error);
+      return false;
+    }
   }
 }
 

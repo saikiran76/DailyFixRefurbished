@@ -56,6 +56,6 @@ export const {
 export const progressReducer = progressSlice.reducer;
 
 // Selectors
-export const selectIsLoading = (state, key) => Boolean(state.progress.loadingStates[key]);
-export const selectProgress = (state, key) => state.progress.progress[key];
-export const selectError = (state, key) => state.progress.errors[key]; 
+export const selectIsLoading = (state: any, key: string) => Boolean(state.progress.loadingStates[key]);
+export const selectProgress = (state: any, key: string) => state.progress.progress[key];
+export const selectError = (state: any, key: string) => state.progress.errors[key]; 

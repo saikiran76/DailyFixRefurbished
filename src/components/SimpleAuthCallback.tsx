@@ -8,6 +8,9 @@ import { fetchOnboardingStatus, setCurrentStep, setIsComplete } from '@/store/sl
 import { handleGoogleCallback, getAuthRedirectPath } from '@/utils/googleAuth';
 import { useLogger } from '@/hooks/useLogger';
 import LavaLamp from './ui/Loader/LavaLamp';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import type { AppDispatch } from '@/store';
 
 /**
@@ -116,8 +119,33 @@ const SimpleAuthCallback = () => {
           throw new Error('No session data returned from auth callback');
         }
 
-        logger.info('[SimpleAuthCallback] Received session data:', 
-          { userId: authData.session?.user?.id, expires: authData.session?.expires_at });
+        // CRITICAL FIX: Explicitly store both access_token and refresh_token in localStorage
+        // This ensures tokens are available for TokenManager even if the storage handler in Supabase fails
+        if (authData.session?.access_token) {
+          localStorage.setItem('access_token', authData.session.access_token);
+          logger.info('[SimpleAuthCallback] Stored access_token in localStorage');
+        }
+
+        if (authData.session?.refresh_token) {
+          localStorage.setItem('refresh_token', authData.session.refresh_token);
+          logger.info('[SimpleAuthCallback] Stored refresh_token in localStorage');
+        }
+        
+        if (authData.session?.expires_at) {
+          localStorage.setItem('session_expiry', String(authData.session.expires_at));
+          logger.info('[SimpleAuthCallback] Stored session_expiry in localStorage');
+        } else if (authData.session?.expires_in) {
+          const expiresAt = Math.floor(Date.now() / 1000) + Number(authData.session.expires_in);
+          localStorage.setItem('session_expiry', String(expiresAt));
+          logger.info('[SimpleAuthCallback] Calculated and stored session_expiry in localStorage');
+        }
+        
+        logger.info('[SimpleAuthCallback] Received session data:', { 
+          userId: authData.session?.user?.id, 
+          expires: authData.session?.expires_at,
+          hasAccessToken: !!authData.session?.access_token,
+          hasRefreshToken: !!authData.session?.refresh_token
+        });
 
         // CRITICAL: Use synchronous dispatch pattern with await for all Redux state updates
         await Promise.all([
@@ -209,47 +237,53 @@ const SimpleAuthCallback = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-black text-white">
-      <div className="w-full max-w-md p-8 space-y-6 bg-zinc-900 rounded-lg shadow-lg border border-zinc-800">
-        <h2 className="text-2xl font-bold text-center">
+    <Card className="flex flex-col items-center justify-center h-screen bg-black text-white">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
           {error ? 'Authentication Error' : (redirecting ? 'Success!' : 'Authenticating...')}
-        </h2>
-        
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
         {loading && (
-          <div className="flex flex-col items-center justify-center space-y-4">
+          <CardContent className="flex flex-col items-center justify-center space-y-4">
             <LavaLamp className="w-[60px] h-[120px]" />
             <p className="text-center text-zinc-400">
               {!redirecting ? 'Processing your sign-in...' : 'Preparing onboarding...'}
             </p>
-          </div>
+          </CardContent>
         )}
         
         {error && (
-          <div className="text-center space-y-4">
-            <p className="text-red-500">{error}</p>
+          <CardContent className="text-center space-y-4">
+            <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
             <p className="text-zinc-400">
               You'll be redirected to the login page shortly.
             </p>
-          </div>
+          </CardContent>
         )}
         
         {redirecting && !error && (
-          <div className="text-center space-y-4">
-            <p className="text-green-500">Authentication successful!</p>
-            <p className="text-zinc-400">
-              Setting up your onboarding process...
-            </p>
-          </div>
+          <CardContent className="text-center space-y-4">
+            <Alert variant="default">
+              <AlertTitle>Authentication successful!</AlertTitle>
+              <AlertDescription>
+                Setting up your onboarding process...
+              </AlertDescription>
+            </Alert>
+          </CardContent>
         )}
         
-        <button
+        <Button
           onClick={handleManualContinue}
           className="w-full py-2 px-4 bg-white text-black font-medium rounded-md hover:bg-gray-200 focus:outline-none transition-colors"
         >
           {error ? 'Return to Login' : 'Continue to Onboarding'}
-        </button>
-      </div>
-    </div>
+        </Button>
+      </CardContent>
+    </Card>
   );
 };
 
