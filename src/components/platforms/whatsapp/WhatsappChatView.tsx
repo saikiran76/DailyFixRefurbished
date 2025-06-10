@@ -42,7 +42,6 @@ import { IoArrowBack } from "react-icons/io5";
 import { BotMessageSquare } from "lucide-react";
 import WhatsappChatbot from '@/components/AI/WhatsappChatbot';
 import { motion } from 'framer-motion';
-import DFSpin from '../images/DF.png';
 import ContactAvatar from './ContactAvatar';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
