@@ -3,7 +3,7 @@ import { getSupabaseClient } from './supabase';
 import logger from './logger';
 // Remove direct import of store to break circular dependency
 // import { store } from '@/store/store';
-import { updateSession } from '@/store/slices/authSlice';
+// import { updateSession } from '@/store/slices/authSlice';
 
 // Standard response structure
 export const ResponseStatus = {
