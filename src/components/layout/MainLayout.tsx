@@ -425,6 +425,16 @@ export default function Page() {
               >
                 <div className="flex-1 flex flex-col p-4 overflow-hidden rounded-lg">
                   {/* Inbox content */}
+                  {!isPlatformConnected && (
+                    <div className="flex flex-col items-center justify-center h-full gap-6">
+                      <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
+                        <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
+                      </div>
+                      <p className="text-gray-400 text-center text-lg">
+                        No platforms connected, go ahead and connect to a platform in Settings
+                      </p>
+                    </div>
+                  )}
                   {isPlatformConnected && !activeContactList && (
                     <div className="flex flex-col gap-6">
                       <div className="rounded-lg overflow-hidden">
@@ -495,6 +505,16 @@ export default function Page() {
                   >
                     <div className="flex-1 flex flex-col p-4 overflow-auto rounded-lg">
                       {/* Inbox content */}
+                      {!isPlatformConnected && (
+                        <div className="flex flex-col items-center justify-center h-full gap-6">
+                          <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
+                          <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
+                          </div>
+                          <p className="text-gray-400 text-center text-lg">
+                            No platforms connected, go ahead and connect to a platform in Settings
+                          </p>
+                        </div>
+                      )}
                       {isPlatformConnected && !activeContactList && (
                         <div className="flex flex-col gap-6">
                           <div className="rounded-lg overflow-hidden">

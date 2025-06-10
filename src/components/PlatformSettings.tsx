@@ -345,7 +345,7 @@ const PlatformSettings = () => {
             </Button>
           </div>
           
-          <div className="rounded-lg overflow-hidden bg-black/50 chat-glowing-border">
+          <div className="rounded-lg overflow-hidden bg-black/50 whatsapp-glowing-border">
             {availablePlatforms.map(platform => {
               const meta = platformMeta[platform as keyof typeof platformMeta];
               const isConnected = activePlatforms.includes(platform);
@@ -428,7 +428,7 @@ const PlatformSettings = () => {
           <div className="mb-6">
             <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200 mb-6">APPEARANCE</h2>
             
-            <div className="rounded-lg  overflow-hidden bg-black/50 mb-6 chat-glowing-border">
+            <div className="rounded-lg  overflow-hidden bg-black/50 mb-6 whatsapp-glowing-border">
               {/* Theme Settings */}
               <div className="border-b border-gray-800">
                 <div className="flex items-center justify-between p-4">
@@ -507,7 +507,7 @@ const PlatformSettings = () => {
             
             <div className="space-y-6">
               {/* Welcome Section */}
-              <Card className="bg-black/50 chat-glowing-border overflow-hidden">
+              <Card className="bg-black/50 whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <BookOpen className="mr-2 h-5 w-5 text-blue-500" />
@@ -637,7 +637,7 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Help & Support Section */}
-              <Card className="bg-black/50 chat-glowing-border overflow-hidden">
+              <Card className="bg-black/50 whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Help & Support</CardTitle>
                   <CardDescription>Need assistance? We're here to help</CardDescription>
