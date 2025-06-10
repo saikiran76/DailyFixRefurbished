@@ -146,9 +146,13 @@ const baseQueryWithAuth = fetchBaseQuery({
     
     // Find the corresponding AbortController for this request
     const requestIndex = pendingRequests.findIndex(req => {
-      // This is a simple check - in a real app, you'd need a more robust way to match requests
-      const url = typeof input === 'string' ? input : input.url;
-      return url.includes(customInit.url || '');
+      // Use a more robust way to match requests
+      if (typeof input === 'string') {
+        return input.includes(req.id);
+      } else if (input && typeof input === 'object' && 'url' in input) {
+        return input.url.includes(req.id);
+      }
+      return false;
     });
     
     if (requestIndex >= 0) {

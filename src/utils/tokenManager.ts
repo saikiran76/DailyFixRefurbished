@@ -1,11 +1,39 @@
 import logger from './logger';
 import { supabase } from './supabase';
 import { toast } from 'react-hot-toast';
+import { getSupabaseClient } from './supabase';
+
+// Add interface to Window object for isRefreshingToken
+declare global {
+  interface Window {
+    isRefreshingToken?: boolean;
+  }
+}
 
 class TokenManager {
+  // Declare class properties
+  private tokens: Map<string, string>;
+  private sessionMonitorInterval: ReturnType<typeof setInterval> | null;
+  private _noRefreshTokenDetected: boolean;
+  
+  // Validation tracking properties
+  validationAttempts: number = 0;
+  maxValidationAttempts: number = 3;
+  validationPromise: Promise<string | null> | null = null;
+  lastValidationTime: number = 0;
+  minValidationInterval: number = 2000; // 2 seconds
+  
+  // Refresh tracking properties
+  refreshAttempts: number = 0;
+  maxRefreshAttempts: number = 3;
+  refreshPromise: Promise<string | null> | null = null;
+  lastRefreshTime: number = 0;
+  minRefreshInterval: number = 5000; // 5 seconds
+
   constructor() {
     this.tokens = new Map();
     this.sessionMonitorInterval = null;
+    this._noRefreshTokenDetected = false;
 
     // Start session monitoring when the TokenManager is created
     this.startSessionMonitoring();
@@ -83,13 +111,6 @@ class TokenManager {
       }
     }, 5 * 60 * 1000); // Check every 5 minutes
   }
-
-  // Track token validation attempts to prevent infinite loops
-  validationAttempts = 0;
-  maxValidationAttempts = 3;
-  validationPromise = null;
-  lastValidationTime = 0;
-  minValidationInterval = 2000; // 2 seconds
 
   async getValidToken(userId = 'default', forceRefresh = false) {
     try {
@@ -265,13 +286,6 @@ class TokenManager {
     }
   }
 
-  // Track refresh attempts to prevent infinite loops
-  refreshAttempts = 0;
-  maxRefreshAttempts = 3;
-  refreshPromise = null;
-  lastRefreshTime = 0;
-  minRefreshInterval = 5000; // 5 seconds
-
   async refreshToken(userId = 'default') {
     try {
       // CRITICAL FIX: Prevent multiple simultaneous refresh attempts
@@ -300,11 +314,8 @@ class TokenManager {
         if (!window.location.pathname.includes('/login')) {
           // Use a non-refreshing toast to inform the user
           toast.error('Your session has expired. Please log in again.', {
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
+            duration: 5000,
+            className: 'bg-red-500',
           });
 
           // Delay redirect to allow toast to be seen
@@ -369,9 +380,9 @@ class TokenManager {
               source: 'supabase.auth.getSession',
               token: (async () => {
                 try {
-                  const supabase = supabase;
-                  if (!supabase) return null;
-                  const { data } = await supabase.auth.getSession();
+                  const supabaseClient = getSupabaseClient();
+                  if (!supabaseClient) return null;
+                  const { data } = await supabaseClient.auth.getSession();
                   return data?.session?.refresh_token;
                 } catch (e) {
                   logger.error('[TokenManager] Error getting session from Supabase for refresh token:', e);
@@ -394,7 +405,7 @@ class TokenManager {
           // try to get one from supabase directly
           if (!refreshToken) {
             try {
-              const { data: sessionData } = await supabase.auth.getSession();
+              const { data: sessionData } = await getSupabaseClient().auth.getSession();
               if (sessionData?.session?.refresh_token) {
                 refreshToken = sessionData.session.refresh_token;
                 logger.info('[TokenManager] Retrieved refresh token from supabase.auth.getSession()');
@@ -435,7 +446,12 @@ class TokenManager {
             // STEP 1: First try to get a fresh session directly from Supabase
             // This is the most reliable method and avoids using refresh tokens
             logger.info('[TokenManager] Attempting to get current session first');
-            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            const supabaseClient = getSupabaseClient();
+            if (!supabaseClient) {
+              throw new Error('Supabase client is not available');
+            }
+            
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
 
             if (!sessionError && sessionData?.session?.access_token) {
               logger.info('[TokenManager] Successfully retrieved current session');
@@ -469,7 +485,7 @@ class TokenManager {
                   await new Promise(resolve => setTimeout(resolve, 500));
                   if (!window.isRefreshingToken) {
                     // Try to get the session again after the other refresh completed
-                    const { data: newSessionData } = await supabase.auth.getSession();
+                    const { data: newSessionData } = await getSupabaseClient().auth.getSession();
                     if (newSessionData?.session?.access_token) {
                       logger.info('[TokenManager] Using session from concurrent refresh');
                       data = newSessionData;
@@ -487,7 +503,7 @@ class TokenManager {
 
                 try {
                   // CRITICAL FIX: Add timeout to prevent hanging refresh requests
-                  const refreshPromise = supabase.auth.refreshSession({
+                  const refreshPromise = getSupabaseClient().auth.refreshSession({
                     refresh_token: refreshToken
                   });
 
@@ -545,7 +561,7 @@ class TokenManager {
 
                       if (email && password) {
                         logger.info('[TokenManager] Found stored credentials, attempting silent re-authentication');
-                        const signInResult = await supabase.auth.signInWithPassword({
+                        const signInResult = await getSupabaseClient().auth.signInWithPassword({
                           email,
                           password
                         });
