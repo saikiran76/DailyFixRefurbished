@@ -879,22 +879,34 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
     );
   }, [filteredContacts, searchQuery]);
 
-  // Listen for platform change event that requires a contact refresh
+  // Check if the current platform is active and refresh if needed
   useEffect(() => {
-    const handlePlatformRefresh = (event: CustomEvent) => {
-      if (event.detail?.platform === 'whatsapp') {
-        logger.info('[WhatsappContactList] Received platform-contact-refresh event for WhatsApp');
-        // Trigger contact refresh
-        handleRefresh();
+    // Check if this component should be active based on localStorage
+    const checkAndRefreshIfActive = () => {
+      const activePlatform = localStorage.getItem('dailyfix_active_platform');
+      if (activePlatform === 'whatsapp') {
+        logger.info('[WhatsappContactList] WhatsApp is the active platform, refreshing contacts');
+        loadContactsWithRetry();
       }
     };
     
-    window.addEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+    // Check on mount and when platform status changes
+    checkAndRefreshIfActive();
+    
+    // Listen for platform changes
+    const handlePlatformChange = () => {
+      checkAndRefreshIfActive();
+    };
+    
+    // Use the simpler event without complex details
+    window.addEventListener('platform-connection-changed', handlePlatformChange);
+    window.addEventListener('refresh-platform-status', handlePlatformChange);
     
     return () => {
-      window.removeEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+      window.removeEventListener('platform-connection-changed', handlePlatformChange);
+      window.removeEventListener('refresh-platform-status', handlePlatformChange);
     };
-  }, [handleRefresh]);
+  }, [loadContactsWithRetry]);
 
   useEffect(() => {
     if (!session) {

@@ -739,22 +739,41 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
     }
   }, [dispatch]);
 
+  // Check if the current platform is active and refresh if needed
+  useEffect(() => {
+    // Check if this component should be active based on localStorage
+    const checkAndRefreshIfActive = () => {
+      const activePlatform = localStorage.getItem('dailyfix_active_platform');
+      if (activePlatform === 'telegram') {
+        logger.info('[TelegramContactList] Telegram is the active platform, refreshing contacts');
+        loadContactsWithRetry();
+      }
+    };
+    
+    // Check on mount and when platform status changes
+    checkAndRefreshIfActive();
+    
+    // Listen for platform changes
+    const handlePlatformChange = () => {
+      checkAndRefreshIfActive();
+    };
+    
+    // Use the simpler event without complex details
+    window.addEventListener('platform-connection-changed', handlePlatformChange);
+    window.addEventListener('refresh-platform-status', handlePlatformChange);
+    
+    return () => {
+      window.removeEventListener('platform-connection-changed', handlePlatformChange);
+      window.removeEventListener('refresh-platform-status', handlePlatformChange);
+    };
+  }, [loadContactsWithRetry]);
+
   useEffect(() => {
     if (!session) {
-      logger.warn('[telegramContactList] No session found, redirecting to login');
+      logger.warn('[TelegramContactList] No session found, redirecting to login');
       navigate('/login');
-      return;
     }
-    
-    // CRITICAL FIX: Check if Telegram is the active platform
-    const activeContactList = localStorage.getItem('dailyfix_active_platform');
-    if (activeContactList !== 'telegram') {
-      logger.info('[telegramContactList] Telegram is not the active platform, skipping initialization');
-      return;
-    }
-    
-    loadContactsWithRetry();
-  }, [session, navigate, loadContactsWithRetry]);
+  }, [session, navigate]);
 
   useEffect(() => {
     const initSocket = async () => {
@@ -884,40 +903,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       contact.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [filteredContacts, searchQuery]);
-
-  // Listen for platform change event that requires a contact refresh
-  useEffect(() => {
-    const handlePlatformRefresh = (event: CustomEvent) => {
-      if (event.detail?.platform === 'telegram') {
-        logger.info('[TelegramContactList] Received platform-contact-refresh event for Telegram');
-        // Trigger contact refresh
-        handleRefresh();
-      }
-    };
-    
-    window.addEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
-    
-    return () => {
-      window.removeEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
-    };
-  }, [handleRefresh]);
-
-  useEffect(() => {
-    if (!session) {
-      logger.warn('[telegramContactList] No session found, redirecting to login');
-      navigate('/login');
-      return;
-    }
-    
-    // CRITICAL FIX: Check if Telegram is the active platform
-    const activeContactList = localStorage.getItem('dailyfix_active_platform');
-    if (activeContactList !== 'telegram') {
-      logger.info('[telegramContactList] Telegram is not the active platform, skipping initialization');
-      return;
-    }
-    
-    loadContactsWithRetry();
-  }, [session, navigate, loadContactsWithRetry]);
 
   return (
     <Card className="contact-list-container telegram-contact-list flex flex-col h-full w-[100%] md:w-full border-none shadow-none rounded-lg">
