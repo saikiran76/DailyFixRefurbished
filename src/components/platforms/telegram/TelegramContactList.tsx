@@ -885,6 +885,40 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
     );
   }, [filteredContacts, searchQuery]);
 
+  // Listen for platform change event that requires a contact refresh
+  useEffect(() => {
+    const handlePlatformRefresh = (event: CustomEvent) => {
+      if (event.detail?.platform === 'telegram') {
+        logger.info('[TelegramContactList] Received platform-contact-refresh event for Telegram');
+        // Trigger contact refresh
+        handleRefresh();
+      }
+    };
+    
+    window.addEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+    };
+  }, [handleRefresh]);
+
+  useEffect(() => {
+    if (!session) {
+      logger.warn('[telegramContactList] No session found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+    
+    // CRITICAL FIX: Check if Telegram is the active platform
+    const activeContactList = localStorage.getItem('dailyfix_active_platform');
+    if (activeContactList !== 'telegram') {
+      logger.info('[telegramContactList] Telegram is not the active platform, skipping initialization');
+      return;
+    }
+    
+    loadContactsWithRetry();
+  }, [session, navigate, loadContactsWithRetry]);
+
   return (
     <Card className="contact-list-container telegram-contact-list flex flex-col h-full w-[100%] md:w-full border-none shadow-none rounded-lg">
       {/* Header */}

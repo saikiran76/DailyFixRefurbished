@@ -1,4 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react"
+import '@/index.css'
+import '@/components/styles/shine-border.css'
+import '@/components/styles/glowing-border.css'
+import '@/components/styles/glowing-platform-icons.css'
 import { useSelector, useDispatch } from "react-redux"
 import { AppSidebar } from "@/components/ui/app-sidebar"
 // import {
@@ -16,7 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send } from "lucide-react"
+import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send, ArrowLeft } from "lucide-react"
 import PlatformSettings from "@/components/PlatformSettings"
 import PlatformsInfo from "@/components/PlatformsInfo"
 import WhatsappContactList from "@/components/platforms/whatsapp/WhatsappContactList"
@@ -26,7 +30,7 @@ import { ChatViewWithErrorBoundary as TelegramChatView } from '@/components/plat
 import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage'
 import { toast } from 'react-hot-toast'
 import logger from '@/utils/logger'
-
+import { useMousePosition } from '@/hooks/useMousePosition'
 // Define interface for contact objects
 interface Contact {
   id: number;
@@ -59,6 +63,31 @@ export default function Page() {
   const contentRef = useRef<HTMLDivElement>(null)
   const startXRef = useRef<number>(0)
   const startWidthRef = useRef<number>(0)
+  const chatViewRef = useRef(null);
+  
+  // State to track window width for responsive design
+  const [isMobile, setIsMobile] = useState<boolean>(false)
+
+  // Use the mouse position hook for the glow effect
+  useMousePosition();
+
+  // Update isMobile state based on window width
+  useEffect(() => {
+    const checkIsMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    // Set initial value
+    checkIsMobile()
+    
+    // Add event listener
+    window.addEventListener('resize', checkIsMobile)
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', checkIsMobile)
+    }
+  }, [])
   
   // Get onboarding state from Redux
   const onboardingState = useSelector((state: any) => state.onboarding)
@@ -306,9 +335,9 @@ export default function Page() {
     }
     return null;
   };
-  
+
   return (
-    <SidebarProvider className="h-screen">
+    <SidebarProvider className="h-screen whatsapp-glowing-border">
       <AppSidebar
         onWhatsAppSelected={handleWhatsAppSelected}
         onTelegramSelected={handleTelegramSelected}
@@ -318,11 +347,29 @@ export default function Page() {
       />
       <SidebarInset>
         {/* Header */}
-        <header className="flex h-16 shrink-0 items-center gap-2 bg-black p-4">
-          <SidebarTrigger className="-ml-1" />
+        <header className="flex h-16 shrink-0 items-center gap-2 bg-[#131516] p-4">
+          {!isMobile || (!selectedContact && !settingsOpen) ? (
+            <SidebarTrigger className="-ml-1" />
+          ) : (
+            selectedContact && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleChatClose}
+                className="text-white hover:bg-gray-800"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">Back to contacts</span>
+              </Button>
+            )
+          )}
           <Separator orientation="vertical" className="mr-2 h-4" />
           {settingsOpen ? (
             <div className="flex-1 ml-4 text-lg font-medium text-white">Settings</div>
+          ) : selectedContact && isMobile ? (
+            <div className="flex-1 ml-4 text-lg font-medium text-white">
+              {selectedContact.display_name}
+            </div>
           ) : (
             <div className="flex-1 ml-4 text-lg font-medium text-white flex items-center">
               {renderPlatformIcon()}
@@ -369,14 +416,14 @@ export default function Page() {
         </header>
 
         {/* Main Content */}
-        <div className="flex flex-1 h-full bg-black ml-6">
+        <div className="flex flex-1 h-full bg-black ml-6 chat-glowing-border overflow-clip" ref={contentRef}>
           {settingsOpen ? (
             <>
               <div
-                style={{ width: `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
-                className="h-full flex flex-col bg-black"
+                style={{ width: isMobile ? '0%' : `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
+                className={`h-full flex flex-col bg-black ${isMobile ? 'hidden' : ''}`}
               >
-                <div className="flex-1 flex flex-col p-4 overflow-auto">
+                <div className="flex-1 flex flex-col p-4 overflow-hidden rounded-lg">
                   {/* Inbox content */}
                   {isPlatformConnected && !activeContactList && (
                     <div className="flex flex-col gap-6">
@@ -390,15 +437,17 @@ export default function Page() {
                   {/* Additional inbox content */}
                 </div>
               </div>
-              <div
-                ref={resizerRef}
-                className="w-4 h-full bg-black flex items-center justify-center cursor-col-resize z-50"
-                onMouseDown={handleMouseDown}
-                onMouseEnter={() => setIsResizerHovered(true)}
-                onMouseLeave={() => setIsResizerHovered(false)}
-              >
-                <div className={`h-full w-[1px] bg-gray-500 ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
-              </div>
+              {!isMobile && (
+                <div
+                  ref={resizerRef}
+                  className="w-4 h-full bg-black flex items-center justify-center cursor-col-resize z-50"
+                  onMouseDown={handleMouseDown}
+                  onMouseEnter={() => setIsResizerHovered(true)}
+                  onMouseLeave={() => setIsResizerHovered(false)}
+                >
+                  <div className={`h-full w-[1px] bg-gray-500 ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
+                </div>
+              )}
               <div className="flex-1 h-full flex flex-col bg-[#131516] overflow-auto">
                 <div className="flex-1 p-6 overflow-auto">
                   <PlatformSettings />
@@ -407,39 +456,8 @@ export default function Page() {
             </>
           ) : (
             <>
-              <div
-                style={{
-                  width: selectedContact ? '35%' : '100%',
-                  transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
-                }}
-                className="h-full flex flex-col bg-black"
-              >
-                <div className="flex-1 flex flex-col p-4 overflow-auto">
-                  {/* Inbox content */}
-                  {isPlatformConnected && !activeContactList && (
-                    <div className="flex flex-col gap-6">
-                      <div className="rounded-lg overflow-hidden">
-                        <div className="p-6 pb-8">
-                          <PlatformsInfo onStartSync={handleStartSync} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {activeContactList === 'whatsapp' && (
-                    <WhatsappContactList
-                      onContactSelect={handleContactSelect}
-                      selectedContactId={selectedContactId}
-                    />
-                  )}
-                  {activeContactList === 'telegram' && (
-                    <TelegramContactList
-                      onContactSelect={handleContactSelect}
-                      selectedContactId={selectedContactId}
-                    />
-                  )}
-                </div>
-              </div>
-              {selectedContact && (
+              {/* Mobile: Either show contact list OR chat view, but not both */}
+              {isMobile && selectedContact ? (
                 <div className="flex-1 h-full">
                   {activeContactList === 'whatsapp' ? (
                     <WhatsAppChatView
@@ -452,17 +470,87 @@ export default function Page() {
                       onClose={handleChatClose}
                     />
                   ) : activeContactList === 'telegram' ? (
-                    <TelegramChatView
-                      selectedContact={selectedContact}
-                      onContactUpdate={(updatedContact) => {
-                        if (selectedContact) {
-                          setSelectedContact({ ...selectedContact, ...updatedContact });
-                        }
-                      }}
-                      onClose={handleChatClose}
-                    />
+                    <div className="flex-1 h-full rounded-lg">
+                      <TelegramChatView
+                        selectedContact={selectedContact}
+                        onContactUpdate={(updatedContact) => {
+                          if (selectedContact) {
+                            setSelectedContact({ ...selectedContact, ...updatedContact });
+                          }
+                        }}
+                        onClose={handleChatClose}
+                      />
+                    </div>
                   ) : null}
                 </div>
+              ) : (
+                <>
+                  {/* Desktop layout OR Mobile contact list view */}
+                  <div
+                    style={{
+                      width: !isMobile && selectedContact ? '35%' : '100%',
+                      transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
+                    }}
+                    className="h-full flex flex-col bg-black"
+                  >
+                    <div className="flex-1 flex flex-col p-4 overflow-auto rounded-lg">
+                      {/* Inbox content */}
+                      {isPlatformConnected && !activeContactList && (
+                        <div className="flex flex-col gap-6">
+                          <div className="rounded-lg overflow-hidden">
+                            <div className="p-6 pb-8">
+                              <PlatformsInfo onStartSync={handleStartSync} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {activeContactList === 'whatsapp' && (
+                        <WhatsappContactList
+                          onContactSelect={handleContactSelect}
+                          selectedContactId={selectedContactId}
+                        />
+                      )}
+                      {activeContactList === 'telegram' && (
+                        <TelegramContactList
+                          onContactSelect={handleContactSelect}
+                          selectedContactId={selectedContactId}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Chat view for desktop */}
+                  {!isMobile && selectedContact && (
+                    <div className="flex-1 h-full">
+                      {activeContactList === 'whatsapp' ? (
+                        <div className="flex-1 h-full rounded-lg whatsapp-glowing-border">
+                          <WhatsAppChatView
+                            selectedContact={selectedContact}
+                            onContactUpdate={(updatedContact) => {
+                              if (selectedContact) {
+                                setSelectedContact({ ...selectedContact, ...updatedContact });
+                              }
+                            }}
+                            onClose={handleChatClose}
+                          />
+                        </div>
+                      ) : activeContactList === 'telegram' ? (
+                        <div className="flex-1 h-full rounded-lg">
+                          <TelegramChatView
+                            selectedContact={selectedContact}
+                            onContactUpdate={(updatedContact) => {
+                              if (selectedContact) {
+                                setSelectedContact({ ...selectedContact, ...updatedContact });
+                              }
+                            }}
+                            onClose={handleChatClose}
+                          />
+                        </div>
+                      ) : null}
+
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

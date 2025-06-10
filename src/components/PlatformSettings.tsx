@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import '@/index.css'
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2, Images, HelpCircle, BookOpen } from "lucide-react";
@@ -25,6 +26,7 @@ import { setWhatsappConnected, setTelegramConnected } from '@/store/slices/onboa
 import ChatBackgroundSettings from '@/components/ui/ChatBackgroundSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 // Define the component for the platform list item
 const PlatformItem = ({ 
@@ -49,7 +51,7 @@ const PlatformItem = ({
   isDisconnecting?: boolean;
 }) => {
   return (
-    <div className="flex items-center justify-between px-4 py-6 border-b border-gray-800">
+    <div className="flex items-center justify-between px-4 py-6">
       <div className="flex items-center gap-4">
         <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-white">
           {logo}
@@ -329,7 +331,7 @@ const PlatformSettings = () => {
         </TabsList>
         
         <TabsContent value="accounts">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-6 ">
             <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200">ACCOUNTS</h2>
             <Button 
               variant="ghost" 
@@ -343,7 +345,7 @@ const PlatformSettings = () => {
             </Button>
           </div>
           
-          <div className="rounded-lg border border-gray-800 overflow-hidden bg-black/50">
+          <div className="rounded-lg overflow-hidden bg-black/50 chat-glowing-border">
             {availablePlatforms.map(platform => {
               const meta = platformMeta[platform as keyof typeof platformMeta];
               const isConnected = activePlatforms.includes(platform);
@@ -426,7 +428,25 @@ const PlatformSettings = () => {
           <div className="mb-6">
             <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200 mb-6">APPEARANCE</h2>
             
-            <div className="rounded-lg border border-gray-800 overflow-hidden bg-black/50">
+            <div className="rounded-lg  overflow-hidden bg-black/50 mb-6 chat-glowing-border">
+              {/* Theme Settings */}
+              <div className="border-b border-gray-800">
+                <div className="flex items-center justify-between p-4">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-white">
+                      <Images className="h-5 w-5" />
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-base font-medium">Theme</h3>
+                      <p className="text-sm text-gray-400">Switch between light, dark and system theme</p>
+                    </div>
+                  </div>
+                  <div className="ml-4">
+                    <ThemeToggle variant="secondary" />
+                  </div>
+                </div>
+              </div>
+              
               {/* WhatsApp Chat Background */}
               <div className="border-b border-gray-800">
                 <div className="flex items-center justify-between p-4">
@@ -487,7 +507,7 @@ const PlatformSettings = () => {
             
             <div className="space-y-6">
               {/* Welcome Section */}
-              <Card className="bg-black/50 border border-gray-800">
+              <Card className="bg-black/50 chat-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <BookOpen className="mr-2 h-5 w-5 text-blue-500" />
@@ -506,7 +526,7 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Getting Started Section */}
-              <Card className="bg-black/50 border border-gray-800">
+              <Card className="whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Getting Started</CardTitle>
                   <CardDescription>Follow these steps to set up your account</CardDescription>
@@ -546,7 +566,7 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Key Features Section */}
-              <Card className="bg-black/50 border border-gray-800">
+              <Card className="whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Key Features</CardTitle>
                   <CardDescription>Discover what DailyFix can do for you</CardDescription>
@@ -585,7 +605,7 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Shortcuts & Tips Section */}
-              <Card className="bg-black/50 border border-gray-800">
+              <Card className="whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Shortcuts & Tips</CardTitle>
                   <CardDescription>Become a power user with these handy tips</CardDescription>
@@ -617,7 +637,7 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Help & Support Section */}
-              <Card className="bg-black/50 border border-gray-800">
+              <Card className="bg-black/50 chat-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Help & Support</CardTitle>
                   <CardDescription>Need assistance? We're here to help</CardDescription>

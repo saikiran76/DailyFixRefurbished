@@ -23,6 +23,7 @@ import {
 import MainLayout from '@/components/layout/MainLayout';
 import { toast } from 'react-hot-toast';
 import CentralLoader from '@/components/ui/CentralLoader';
+import TutorialCarousel from '@/components/ui/TutorialCarousel';
 
 // Icons
 import { 
@@ -70,6 +71,9 @@ const Dashboard = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const initAttemptCountRef = useRef(0);
   
+  // Tutorial state
+  const [showTutorial, setShowTutorial] = useState(false);
+  
   // Add a timeout to handle potential infinite loading
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -81,6 +85,21 @@ const Dashboard = () => {
     
     return () => clearTimeout(timeout);
   }, [isInitialized, logger]);
+  
+  // Check if user should see tutorial
+  useEffect(() => {
+    if (isInitialized && session) {
+      // Check localStorage to see if user has completed tutorial
+      const tutorialCompleted = localStorage.getItem('dailyfix_tutorial_completed');
+      
+      if (!tutorialCompleted) {
+        logger.info('[Dashboard] First-time user detected, showing tutorial');
+        setShowTutorial(true);
+      } else {
+        logger.info('[Dashboard] Returning user, tutorial already completed');
+      }
+    }
+  }, [isInitialized, session, logger]);
   
   // Navigation items
   const mainNavItems = [
@@ -165,6 +184,21 @@ const Dashboard = () => {
     }
   }, [session, navigate, logger, isComplete, currentStep, dispatch]);
 
+  // Handle tutorial completion
+  const handleTutorialComplete = () => {
+    logger.info('[Dashboard] Tutorial completed');
+    setShowTutorial(false);
+    toast.success('Welcome to DailyFix!', {
+      duration: 3000,
+    });
+  };
+  
+  // Handle tutorial skip
+  const handleTutorialSkip = () => {
+    logger.info('[Dashboard] Tutorial skipped');
+    setShowTutorial(false);
+  };
+
   // If not initialized yet, show loading
   if (!isInitialized) {
     return (
@@ -194,6 +228,14 @@ const Dashboard = () => {
   return (
     <div className='w-full h-full'>
       <MainLayout />
+      
+      {/* Tutorial overlay for first-time users */}
+      {showTutorial && (
+        <TutorialCarousel 
+          onComplete={handleTutorialComplete}
+          onSkip={handleTutorialSkip}
+        />
+      )}
     </div>
   );
 };
