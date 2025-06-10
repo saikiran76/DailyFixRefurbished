@@ -40,7 +40,7 @@ export function Help() {
                     </Button>
                     <div className="text-xs text-gray-400">
                          <Info className="h-3 w-3 inline mr-1" />
-                         Learn how to use DailyFix with our interactive tutorial
+                         Learn how to use DailyFix
                     </div>
                </div>
 
