@@ -216,9 +216,9 @@ const SocketErrorFallback = ({ onRetry }) => {
             Unable to connect to the chat server
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        {/* <CardContent>
           <ErrorMessage message="Socket connection error. This could be due to network issues or server maintenance. Check your internet connection and try again." />
-        </CardContent>
+        </CardContent> */}
         <CardFooter className="flex flex-col space-y-2">
           <Button 
             onClick={onRetry} 
@@ -248,7 +248,7 @@ const ErrorFallback = ({ error }) => {
           <CardTitle className="text-red-500">Error loading chat</CardTitle>
         </CardHeader>
         <CardContent>
-          <ErrorMessage message={error?.message || 'An unexpected error occurred'} />
+          {/* <ErrorMessage message={error?.message || 'An unexpected error occurred'} /> */}
           <p className="text-sm text-gray-400 mt-4">
             Please try refreshing the page or contact support if the issue persists.
           </p>
@@ -1036,7 +1036,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     if (loadingState === LOADING_STATES.ERROR) {
       return (
         <div className="flex flex-col items-center justify-center h-full">
-          <ErrorMessage message={error || 'Failed to load messages'} />
+          {/* <ErrorMessage message={error || 'Failed to load messages'} /> */}
         </div>
       );
     }

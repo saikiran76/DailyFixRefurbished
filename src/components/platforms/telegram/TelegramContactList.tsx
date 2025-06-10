@@ -984,7 +984,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           <ShimmerContactList />
         ) : error ? (
           <div className="flex flex-col items-center justify-center p-4 mt-[4rem]">
-            <ErrorMessage message={`${error}`} />
+            {/* <ErrorMessage message={`${error}`} /> */}
             <Button
               onClick={() => loadContactsWithRetry()}
               variant="default"

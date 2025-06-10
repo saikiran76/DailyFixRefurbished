@@ -208,13 +208,18 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
         logger.error(`[API] Maximum refresh attempts (${maxRefreshAttempts}) reached`);
         refreshAttempts = 0; // Reset for future attempts
         
-        // Dispatch session expired event
-        if (typeof window !== 'undefined') {
+        // Check if this is an intentional logout
+        const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+        
+        // Dispatch session expired event only if not an intentional logout
+        if (typeof window !== 'undefined' && !isIntentionalLogout) {
           const sessionExpiredEvent = new CustomEvent('sessionExpired', {
             detail: { reason: 'max_attempts_reached' }
           });
           window.dispatchEvent(sessionExpiredEvent);
           logger.info('[API] Maximum refresh attempts reached, triggering global session expired event');
+        } else if (isIntentionalLogout) {
+          logger.info('[API] Intentional logout detected, not showing session expired modal');
         }
         
         return result;
@@ -246,11 +251,18 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
             !window.location.pathname.includes('/auth/callback') &&
             !document.querySelector('.modal-open')) {
           
-          const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-            detail: { reason: 'token_refresh_failed' }
-          });
-          window.dispatchEvent(sessionExpiredEvent);
-          logger.info('[API] Token refresh failed, triggering global session expired event');
+          // Check if this is an intentional logout
+          const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+          
+          if (!isIntentionalLogout) {
+            const sessionExpiredEvent = new CustomEvent('sessionExpired', {
+              detail: { reason: 'token_refresh_failed' }
+            });
+            window.dispatchEvent(sessionExpiredEvent);
+            logger.info('[API] Token refresh failed, triggering global session expired event');
+          } else {
+            logger.info('[API] Intentional logout detected, not showing session expired modal');
+          }
         }
       }
     } catch (refreshError) {
@@ -262,11 +274,18 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
           !window.location.pathname.includes('/auth/callback') &&
           !document.querySelector('.modal-open')) {
         
-        const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-          detail: { reason: 'refresh_error' }
-        });
-        window.dispatchEvent(sessionExpiredEvent);
-        logger.info('[API] Token refresh error, triggering global session expired event');
+        // Check if this is an intentional logout
+        const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+        
+        if (!isIntentionalLogout) {
+          const sessionExpiredEvent = new CustomEvent('sessionExpired', {
+            detail: { reason: 'refresh_error' }
+          });
+          window.dispatchEvent(sessionExpiredEvent);
+          logger.info('[API] Token refresh error, triggering global session expired event');
+        } else {
+          logger.info('[API] Intentional logout detected, not showing session expired modal');
+        }
       }
     }
   }

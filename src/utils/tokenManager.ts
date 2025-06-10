@@ -56,11 +56,19 @@ class TokenManager {
                 // This will trigger the SessionExpiredModal to show
                 logger.info('[TokenManager] Session expired during periodic check, triggering global session expired event');
 
-                // Dispatch a custom event that the App component will listen for
-                const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-                  detail: { reason: 'session_expired' }
-                });
-                window.dispatchEvent(sessionExpiredEvent);
+                // Check if this is an intentional logout
+                const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+                
+                if (!isIntentionalLogout) {
+                  // Only dispatch the event if it's not an intentional logout
+                  // Dispatch a custom event that the App component will listen for
+                  const sessionExpiredEvent = new CustomEvent('sessionExpired', {
+                    detail: { reason: 'session_expired' }
+                  });
+                  window.dispatchEvent(sessionExpiredEvent);
+                } else {
+                  logger.info('[TokenManager] Intentional logout detected, not showing session expired modal');
+                }
 
                 // Don't redirect automatically - the modal will handle this
                 // This prevents the jarring page refresh experience
@@ -576,12 +584,17 @@ class TokenManager {
             if (refreshError?.message?.includes('Refresh token has expired')) {
               logger.info('[TokenManager] Detected expired refresh token, need to re-authenticate');
               
-              // Trigger session expired event
-              if (typeof window !== 'undefined') {
+              // Check if this is an intentional logout
+              const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+              
+              // Trigger session expired event only if not an intentional logout
+              if (typeof window !== 'undefined' && !isIntentionalLogout) {
                 const sessionExpiredEvent = new CustomEvent('sessionExpired', {
                   detail: { reason: 'refresh_token_expired' }
                 });
                 window.dispatchEvent(sessionExpiredEvent);
+              } else if (isIntentionalLogout) {
+                logger.info('[TokenManager] Intentional logout detected, not showing session expired modal');
               }
             }
             
@@ -592,11 +605,19 @@ class TokenManager {
           
           // Handle the error and trigger UI feedback
           if (typeof window !== 'undefined') {
-            // Trigger a global session expired event
-            const sessionExpiredEvent = new CustomEvent('sessionExpired', {
-              detail: { reason: 'token_refresh_failed', error: error.message }
-            });
-            window.dispatchEvent(sessionExpiredEvent);
+            // Check if this is an intentional logout
+            const isIntentionalLogout = localStorage.getItem('intentional_logout') === 'true';
+            
+            if (!isIntentionalLogout) {
+              // Only trigger the session expired event if it's not an intentional logout
+              // Trigger a global session expired event
+              const sessionExpiredEvent = new CustomEvent('sessionExpired', {
+                detail: { reason: 'token_refresh_failed', error: error.message }
+              });
+              window.dispatchEvent(sessionExpiredEvent);
+            } else {
+              logger.info('[TokenManager] Intentional logout detected, not showing session expired modal');
+            }
           }
           
           return null;

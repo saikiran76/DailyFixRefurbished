@@ -108,6 +108,9 @@ export const signOut = createAsyncThunk(
     try {
       logger.info('[Auth] Signing out');
       
+      // Set a flag to indicate this is an intentional logout, not a session expiration
+      localStorage.setItem('intentional_logout', 'true');
+      
       // Get the Supabase client
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -116,9 +119,32 @@ export const signOut = createAsyncThunk(
       
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      
+      // Clear auth data from localStorage
+      localStorage.removeItem('dailyfix_auth');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('dailyfix_active_platform');
+      
+      // Remove the intentional logout flag after a short delay
+      setTimeout(() => {
+        localStorage.removeItem('intentional_logout');
+      }, 2000);
+      
+      logger.info('[Auth] Successfully signed out and cleared local storage');
       return null;
     } catch (error: any) {
       logger.error('[Auth] Sign out error:', error);
+      
+      // Even if the API call fails, still clear local storage
+      localStorage.removeItem('dailyfix_auth');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('dailyfix_active_platform');
+      
+      // Remove the intentional logout flag
+      localStorage.removeItem('intentional_logout');
+      
       return rejectWithValue(error.message);
     }
   }
@@ -265,11 +291,19 @@ const authSlice = createSlice({
     builder.addCase(signOut.fulfilled, (state) => {
       state.loading = false;
       state.session = null;
+      state.user = null;
       state.error = null;
+      state.matrixCredentials = null;
+      state.hasInitialized = false;
     });
     builder.addCase(signOut.rejected, (state, action) => {
       state.loading = false;
       state.error = action.payload as string;
+      // Even if the API call fails, still clear the auth state
+      state.session = null;
+      state.user = null;
+      state.matrixCredentials = null;
+      state.hasInitialized = false;
     });
 
     // Google sign-in

@@ -217,7 +217,7 @@ const SocketErrorFallback = ({ onRetry }) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ErrorMessage message="Check your internet connection and try again." />
+          {/* <ErrorMessage message="Check your internet connection and try again." /> */}
         </CardContent>
         <CardFooter className="flex flex-col space-y-2">
           <Button 
@@ -1071,7 +1071,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     if (loadingState === LOADING_STATES.ERROR) {
       return (
         <div className="flex flex-col items-center justify-center h-full">
-          <ErrorMessage message={error || 'Failed to load messages'} />
+          {/* <ErrorMessage message={error || 'Failed to load messages'} /> */}
+          <Alert>{error || 'Failed to load Messages'}</Alert>
         </div>
       );
     }

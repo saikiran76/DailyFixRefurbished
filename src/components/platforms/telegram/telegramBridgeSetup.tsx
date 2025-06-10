@@ -946,7 +946,7 @@ const TelegramBridgeSetup = ({ onComplete, onCancel, relogin = false }: Telegram
           <CardTitle className="text-2xl font-bold text-white">Connection Error</CardTitle>
         </CardHeader>
         <CardContent>
-          <ErrorMessage message={errorMessage} />
+          {/* <ErrorMessage message={errorMessage} /> */}
           {showRetryButton && (
             <Button 
               variant="destructive" 

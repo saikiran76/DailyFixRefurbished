@@ -997,7 +997,7 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
           <ShimmerContactList />
         ) : error ? (
           <div className="flex flex-col items-center justify-center p-4">
-            <ErrorMessage message={`Failed to load contacts: ${error}`} />
+            {/* <ErrorMessage message={`Failed to load contacts: ${error}`} /> */}
             <Button
               onClick={() => loadContactsWithRetry()}
               variant="default"

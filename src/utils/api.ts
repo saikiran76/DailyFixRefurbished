@@ -240,7 +240,7 @@ api.interceptors.response.use(
 );
 
 // Helper method to get current auth state
-api.getAuthState = async () => {
+export const getAuthState = async () => {
   try {
     const token = await getAccessToken();
     if (!token) return null;
