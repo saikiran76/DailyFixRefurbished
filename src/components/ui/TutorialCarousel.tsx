@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import '@/components/styles/glowing-border.css'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,8 +101,8 @@ export const TutorialCarousel: React.FC<TutorialCarouselProps> = ({ onComplete, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-3xl bg-black border-gray-800">
+    <div className="fixed inset-0 z-50 bg-blue-600/50 opacity-90 flex items-center justify-center p-4">
+      <Card className="w-full max-w-3xl bg-black border-gray-800 r ">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center text-white">
             {tutorialSteps[currentStep].title}

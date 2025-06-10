@@ -43,7 +43,6 @@ import { BotMessageSquare } from "lucide-react";
 import { Images } from "lucide-react";
 // import telegramChatbot from '@/components/AI/telegramChatbot';
 import { motion } from 'framer-motion';
-import DFSpin from '../images/DF.png';
 import ContactAvatar from './ContactAvatar';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
