@@ -159,31 +159,30 @@ class ContactService {
 
   // fresh sync request - onDemand
 
-  async performFreshSync(userId: string, isWhatsAppConnected: boolean) {
+  async performFreshSync(userId: string, isWhatsAppConnected: boolean, platform: string = 'whatsapp') {
     try {
-      // const userId = state.auth.session?.user?.id;
-      // const { whatsappConnected, accounts } = state.onboarding;
-
       if (!userId) {
         throw new AppError(ErrorTypes.AUTH, 'No authenticated user found');
       }
 
-      // CRITICAL FIX: Check if WhatsApp is connected before making API requests
-      // const isWhatsAppConnected = whatsappConnected ||
-      //                         accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
-
-      if (!isWhatsAppConnected) {
-        logger.info('[ContactService] WhatsApp is not connected, skipping fresh sync');
+      // CRITICAL FIX: Check if platform is connected before making API requests
+      // Only apply WhatsApp check for WhatsApp platform
+      if (platform === 'whatsapp' && !isWhatsAppConnected) {
+        logger.info(`[ContactService] ${platform} is not connected, skipping fresh sync`);
         return [];
       }
 
-      logger.info('[ContactService] Starting fresh sync for user:', userId);
+      logger.info(`[ContactService] Starting fresh sync for ${platform} for user:`, userId);
 
       // Clear existing cache
       this.clearCache(userId);
 
-      // Make API call to fresh sync endpoint
-      const response = await api.get(`${WHATSAPP_API_PREFIX}/freshSyncContacts`);
+      // CRITICAL FIX: Use platform-specific API prefix
+      const apiPrefix = platform === 'whatsapp' ? WHATSAPP_API_PREFIX : `/api/v1/${platform}`;
+      logger.info(`[ContactService] Using API prefix for fresh sync: ${apiPrefix}`);
+
+      // Make API call to fresh sync endpoint with correct platform
+      const response = await api.get(`${apiPrefix}/freshSyncContacts`);
 
       // Update cache with fresh data
       if (response?.data?.data) {
@@ -193,15 +192,15 @@ class ContactService {
         });
       }
 
-      logger.info('[ContactService] Fresh sync completed:', {
+      logger.info(`[ContactService] Fresh sync completed for ${platform}:`, {
         userId,
         contactCount: response?.data?.data?.length || 0
       });
 
       return response.data;
     } catch (error) {
-      logger.error('[ContactService] Fresh sync failed:', error);
-      throw handleError(error, 'Failed to perform fresh sync');
+      logger.error(`[ContactService] Fresh sync failed for ${platform}:`, error);
+      throw handleError(error, `Failed to perform fresh sync for ${platform}`);
     }
   }
 

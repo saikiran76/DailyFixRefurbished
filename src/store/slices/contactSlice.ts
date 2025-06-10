@@ -84,7 +84,7 @@ export const freshSyncContacts = createAsyncThunk(
       }
 
       logger.info(`[Contacts] ${platform} is connected, performing fresh sync`);
-      const result = await contactService.performFreshSync(userId, isPlatformConnected);
+      const result = await contactService.performFreshSync(userId, isPlatformConnected, platform);
       return result;
     } catch (error: any) {
       logger.error('[Contacts] Fresh sync failed:', error);

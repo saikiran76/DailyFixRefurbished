@@ -1,0 +1,61 @@
+/* Glowing platform icon effects */
+.platform-icon-glow-base {
+  position: relative;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+
+.platform-icon-glow-base::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+  filter: blur(8px);
+}
+
+.platform-icon-glow-base:hover::before {
+  opacity: 0.6;
+}
+
+/* Telegram glow effect (blue) */
+.telegram-icon-glow::before {
+  background: radial-gradient(
+    circle,
+    hsl(var(--telegram-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%)),
+    transparent 70%
+  );
+}
+
+/* WhatsApp glow effect (green) */
+.whatsapp-icon-glow::before {
+  background: radial-gradient(
+    circle,
+    hsl(var(--whatsapp-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%)),
+    transparent 70%
+  );
+}
+
+/* Active indicator pulse effect */
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 0 0px rgba(var(--platform-color-rgb), 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 6px rgba(var(--platform-color-rgb), 0);
+  }
+}
+
+.platform-active-indicator {
+  animation: pulseGlow 2s infinite;
+}
+
+.whatsapp-active-indicator {
+  --platform-color-rgb: 74, 222, 128;
+}
+
+.telegram-active-indicator {
+  --platform-color-rgb: 96, 165, 250;
+} 

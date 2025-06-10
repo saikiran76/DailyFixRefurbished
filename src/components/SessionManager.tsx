@@ -25,6 +25,9 @@ import CentralLoader from '@/components/ui/CentralLoader';
 // This helps prevent issues with strict mode and hot reloading
 let globalInitialized = false;
 
+// List of public routes that don't require authentication
+const PUBLIC_ROUTES = ['/login', '/signup', '/reset-password', '/auth/callback'];
+
 interface SessionManagerProps {
   children: ReactNode;
 }
@@ -102,6 +105,60 @@ const SessionManager = ({ children }: SessionManagerProps) => {
     localStorage.removeItem('auth_timestamp');
     logger.info('[SessionManager] All session data cleared');
   };
+
+  // Helper function to check if current route is public
+  const isPublicRoute = (path: string) => {
+    return PUBLIC_ROUTES.some(route => path.startsWith(route));
+  };
+
+  // Set up auth state change listener
+  useEffect(() => {
+    const supabaseClient = getSupabaseClient();
+    
+    if (!supabaseClient) {
+      logger.error('[SessionManager] No Supabase client available for auth state listener');
+      return;
+    }
+    
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((event, session) => {
+      logger.info('[SessionManager] Auth state changed:', event);
+      
+      if (event === 'SIGNED_IN' && session) {
+        logger.info('[SessionManager] User signed in');
+        dispatch(updateSession({ session }));
+        
+        // Check for redirect parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectPath = urlParams.get('redirect');
+        
+        if (redirectPath) {
+          navigate(redirectPath);
+        } else if (location.pathname === '/login') {
+          navigate('/dashboard');
+        }
+      } 
+      else if (event === 'SIGNED_OUT') {
+        logger.info('[SessionManager] User signed out');
+        clearAllSessionData();
+        
+        // Don't redirect if already on a public route
+        if (!isPublicRoute(location.pathname)) {
+          // Save current path for redirect after login
+          const currentPath = location.pathname;
+          navigate(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        }
+      }
+      else if (event === 'TOKEN_REFRESHED') {
+        logger.info('[SessionManager] Token refreshed');
+      }
+    });
+    
+    // Clean up subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [dispatch, navigate, location, logger]);
 
   // CRITICAL FIX: Add emergency timeout to prevent infinite initialization
   useEffect(() => {
@@ -249,113 +306,27 @@ const SessionManager = ({ children }: SessionManagerProps) => {
             clearAllSessionData();
           }
           
-          setIsValidating(false);
-          setInitialized(true);
-          globalInitialized = true;
-          return;
+          // If not on a public route, redirect to login with the current path
+          if (!isPublicRoute(location.pathname)) {
+            navigate(`/login?redirect=${encodeURIComponent(location.pathname)}`);
+          }
         }
-        
-        // If we reach here, Supabase has a valid session
-        
-        // If we have a stored session in Redux, validate and fetch what we need
-        if (currentState.auth.session) {
-          // Safely cast to our session type
-          const currentSession = currentState.auth.session as SessionType;
+        // We have a valid Supabase session but no Redux session, initialize it
+        else if (supabaseSession?.session && !currentState.auth.session) {
+          // Normalize the session for our Redux store
+          const normalizedSession: SessionType = {
+            ...supabaseSession.session,
+            user: supabaseSession.session.user
+          };
           
-          if (currentSession.user) {
-            const user = currentSession.user;
-            
-            logger.info('[SessionManager] Using existing session from Redux store for user:', user.id);
-            
-            // Make sure the session in Redux matches Supabase session
-            if (supabaseSession?.session?.user?.id !== user.id) {
-              logger.warn('[SessionManager] Session mismatch between Redux and Supabase, clearing');
-              clearAllSessionData();
-              setIsValidating(false);
-              setInitialized(true);
-              globalInitialized = true;
-              return;
-            }
-            
-            // Session matches, refresh token if needed
-            try {
-              await refreshTokenIfNeeded();
-              
-              // Fetch Matrix credentials if needed (for Matrix/Telegram features)
-              if (user.id && !credentials) {
-                logger.info('[SessionManager] Fetching Matrix credentials for user:', user.id);
-                // Use any parameter for now, we'll fix the MatrixSlice later if needed
-                dispatch(fetchMatrixCredentials(user.id as any));
-              }
-            } catch (refreshError: any) {
-              logger.error('[SessionManager] Error refreshing token:', refreshError);
-              
-              // Only clear if we believe this error is auth-related
-              if (refreshError.toString().includes('token') || 
-                  refreshError.toString().includes('auth') || 
-                  refreshError.toString().includes('session')) {
-                clearAllSessionData();
-              }
-            }
-            
-            logger.info('[SessionManager] Session data stored in Redux store');
-          }
+          // Update Redux state with the normalized session
+          dispatch(updateSession({ session: normalizedSession }));
+          logger.info('[SessionManager] Session restored from Supabase');
         }
-        // Otherwise, try to restore from localStorage if we have a valid Supabase session
-        else if (authData && authData.user && authData.user.id) {
-          try {
-            // Verify the user ID matches the Supabase session
-            if (supabaseSession?.session?.user?.id !== authData.user.id) {
-              logger.warn('[SessionManager] User ID mismatch between localStorage and Supabase session');
-              clearAllSessionData();
-              setIsValidating(false);
-              setInitialized(true);
-              globalInitialized = true;
-              return;
-            }
-            
-            logger.info('[SessionManager] Restoring session from localStorage for user:', authData.user.id);
-            
-            // Update Redux store with auth data from localStorage
-            dispatch(updateSession({ session: {
-              user: authData.user,
-              access_token: authData.accessToken,
-              refresh_token: authData.refreshToken || '',
-              expires_at: authData.expiresAt || undefined
-            }}));
-            
-            // Fetch Matrix credentials if needed
-            if (authData.user.id && !credentials) {
-              logger.info('[SessionManager] Fetching Matrix credentials for user:', authData.user.id);
-              dispatch(fetchMatrixCredentials(authData.user.id as any));
-            }
-            
-            setIsValidating(false);
-          } catch (err) {
-            logger.error('[SessionManager] Session restoration failed:', err);
-            
-            // Clear invalid session data
-            clearAllSessionData();
-            
-            // Show error toast if not on login page
-            if (location.pathname !== '/login') {
-              toast.error('Your session has expired. Please log in again.');
-              
-              // Dispatch session expiration event
-              window.dispatchEvent(new CustomEvent('sessionExpired', {
-                detail: { 
-                  reason: 'Session validation failed', 
-                  redirectUrl: `/login?redirect=${encodeURIComponent(location.pathname)}`
-                }
-              }));
-            }
-            
-            setIsValidating(false);
-          }
-        } else {
-          // No stored session, nothing to validate
-          logger.info('[SessionManager] No stored session found');
-          setIsValidating(false);
+        // Check for Matrix credentials if we have a valid session
+        else if (currentState.auth.session && !credentials) {
+          // Fetch Matrix credentials if needed
+          dispatch(fetchMatrixCredentials());
         }
         
         // Set initialized flags
@@ -409,10 +380,25 @@ const SessionManager = ({ children }: SessionManagerProps) => {
       }
     };
     
+    // Handle session updates from API
+    const handleSessionUpdated = (event: CustomEvent) => {
+      logger.info('[SessionManager] Session updated from API');
+      
+      // Skip processing if component is unmounted
+      if (!mountedRef.current) return;
+      
+      // Update Redux with the new session
+      if (event.detail?.session) {
+        dispatch(updateSession({ session: event.detail.session }));
+      }
+    };
+    
     window.addEventListener('auth-state-changed', handleAuthStateChange as EventListener);
+    window.addEventListener('session-updated', handleSessionUpdated as EventListener);
     
     return () => {
       window.removeEventListener('auth-state-changed', handleAuthStateChange as EventListener);
+      window.removeEventListener('session-updated', handleSessionUpdated as EventListener);
     };
   }, [logger, dispatch]);
 

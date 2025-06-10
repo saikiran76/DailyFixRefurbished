@@ -12,7 +12,7 @@ import matrixReducer from './slices/matrixSlice';
 import { messageReducer } from '@/store/slices/messageSlice';
 
 // Import contactReducer directly to avoid accessing the slice object
-import { contactReducer, getContactReducer } from '@/store/slices/contactSlice';
+import { contactReducer } from '@/store/slices/contactSlice';
 
 
 import apiService from '../services/apiService';

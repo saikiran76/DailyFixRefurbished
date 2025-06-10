@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from '@/components/ui/sonner';
 import '@/index.css';
 
 // Import our components
@@ -201,7 +201,7 @@ function App() {
             onClose={handleModalClose}
           />
 
-          <Toaster position="top-right" />
+          <Toaster position="top-center" closeButton />
           
           <SessionManager>
             <SessionExpirationHandler />

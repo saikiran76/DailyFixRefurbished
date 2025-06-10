@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { signIn, signInWithGoogle } from '@/store/slices/authSlice';
 import { FcGoogle } from 'react-icons/fc';
@@ -30,15 +30,39 @@ const useAppSelector = (selector: (state: RootState) => any) => useSelector(sele
 const Login = () => {
   const logger = useLogger();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useAppDispatch();
   
   const authState = useAppSelector((state) => state.auth);
-  const { error, loading: isLoading, googleAuthPending } = authState;
+  const { error, loading: isLoading, googleAuthPending, session } = authState;
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+
+  // Parse redirect query parameter on initial load
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const redirect = params.get('redirect');
+    if (redirect) {
+      setRedirectPath(redirect);
+      logger.info('[Login] Found redirect parameter:', redirect);
+    }
+  }, [location.search, logger]);
+
+  // Redirect authenticated users
+  useEffect(() => {
+    if (session) {
+      logger.info('[Login] User is authenticated, redirecting');
+      if (redirectPath) {
+        navigate(redirectPath);
+      } else {
+        navigate('/dashboard');
+      }
+    }
+  }, [session, redirectPath, navigate, logger]);
 
   // Form validation
   const validateForm = (): boolean => {
@@ -62,6 +86,11 @@ const Login = () => {
     try {
       setLocalError('');
       logger.info('[Login] Initiating Google sign-in process');
+      
+      // Save redirect path to localStorage for OAuth flow
+      if (redirectPath) {
+        localStorage.setItem('auth_redirect', redirectPath);
+      }
       
       await dispatch(signInWithGoogle());
       // The page will be redirected by the Google OAuth flow
@@ -90,7 +119,12 @@ const Login = () => {
       
       logger.info('[Login] Sign in successful');
       
-      // Navigation to dashboard or onboarding is handled by route protection in AppRoutes
+      // Handle redirect after successful login
+      if (redirectPath) {
+        navigate(redirectPath);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       logger.error('[Login] Sign in error:', error);
       setLocalError(error?.message || 'Invalid email or password. Please try again.');

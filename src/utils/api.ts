@@ -1,7 +1,9 @@
 import axios from 'axios';
-import { supabase } from '@/utils/supabase';
-import { tokenManager } from '@/utils/tokenManager';
-import logger from '@/utils/logger';
+import { getSupabaseClient } from './supabase';
+import logger from './logger';
+// Remove direct import of store to break circular dependency
+// import { store } from '@/store/store';
+import { updateSession } from '@/store/slices/authSlice';
 
 // Standard response structure
 export const ResponseStatus = {
@@ -51,237 +53,188 @@ export const ResponseSchemas = {
   }
 };
 
-// Create unified API instance
+// Create base axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:4000",
-  timeout: 180000, // 180 seconds
-  withCredentials: false, // Changed from true to false to avoid CORS issues
+  baseURL: import.meta.env.VITE_API_URL || 'https://api.dailyfix.app',
+  timeout: 35000, // 35 seconds
   headers: {
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
   }
 });
 
-// Initialize tracking arrays if they don't exist
-if (typeof window !== 'undefined') {
-  window._pendingRequests = window._pendingRequests || [];
-  window._socketConnections = window._socketConnections || [];
-}
+// Track if a token refresh is in progress
+let isRefreshing = false;
+// Store pending requests
+let pendingRequests: Array<() => void> = [];
 
-// Add request interceptor to set auth token and track requests
-api.interceptors.request.use(async (config) => {
+// Helper to get current access token
+const getAccessToken = (): string | null => {
   try {
-    // CRITICAL FIX: Track this request with an AbortController
-    if (typeof window !== 'undefined' && window.AbortController) {
-      const controller = new AbortController();
-      config.signal = controller.signal;
-      window._pendingRequests.push(controller);
-
-      // Add a unique ID to the request for tracking
-      config._requestId = Date.now() + Math.random().toString(36).substring(2, 9);
-    }
-
-    // Get token from token manager
-    let token = null;
-
-    try {
-      token = await tokenManager.getValidToken();
-    } catch (tokenError) {
-      console.error('[API] Error getting token from tokenManager:', tokenError);
-
-      // Fallback token retrieval if tokenManager fails
-      token = localStorage.getItem('access_token');
-
-      // If token not found in access_token, try to get from dailyfix_auth
-      if (!token) {
-        const authDataStr = localStorage.getItem('dailyfix_auth');
-        if (authDataStr) {
-          try {
-            const authData = JSON.parse(authDataStr);
-            token = authData.session?.access_token;
-            logger.info('[API] Retrieved token from dailyfix_auth');
-          } catch (e) {
-            logger.error('[API] Error parsing auth data:', e);
-          }
-        }
-      }
-
-      // If still no token, try to get from persist:auth (Redux persisted state)
-      if (!token) {
-        const authStr = localStorage.getItem('persist:auth');
-        if (authStr) {
-          try {
-            const authData = JSON.parse(authStr);
-            const sessionData = JSON.parse(authData.session);
-            token = sessionData?.access_token;
-            logger.info('[API] Retrieved token from persist:auth');
-          } catch (e) {
-            logger.error('[API] Error parsing persisted auth data:', e);
-          }
-        }
-      }
-    }
-
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      logger.info('[API] Added Authorization header');
-    } else {
-      logger.warn('[API] No token available for request');
-    }
-
-    return config;
+    return localStorage.getItem('access_token');
   } catch (error) {
-    logger.error('[API] Error setting auth token:', error);
-    return config;
+    logger.error('[API] Error getting access token:', error);
+    return null;
   }
-}, (error) => {
-  return Promise.reject(error);
-});
+};
 
-// Track refresh attempts to prevent infinite loops
-let refreshAttempts = 0;
-const maxRefreshAttempts = 3;
-let refreshPromise = null;
-let lastRefreshTime = 0;
-const minRefreshInterval = 5000; // 5 seconds
+// Helper to check if token is expired or about to expire
+const isTokenExpired = (): boolean => {
+  try {
+    const expiryStr = localStorage.getItem('token_expires_at');
+    if (!expiryStr) return true;
+    
+    const expiryTime = parseInt(expiryStr, 10) * 1000; // Convert to milliseconds
+    const currentTime = Date.now();
+    
+    // Consider token expired if it expires in less than 5 minutes
+    return currentTime > (expiryTime - 5 * 60 * 1000);
+  } catch (error) {
+    logger.error('[API] Error checking token expiry:', error);
+    return true;
+  }
+};
 
-// Update the response interceptor to handle auth errors consistently
+// Refresh token and update stored session
+const refreshToken = async (): Promise<string> => {
+  if (isRefreshing) {
+    // Wait for the ongoing refresh to complete
+    return new Promise((resolve) => {
+      pendingRequests.push(() => {
+        const token = getAccessToken();
+        resolve(token || '');
+      });
+    });
+  }
+  
+  isRefreshing = true;
+  
+  try {
+    logger.info('[API] Refreshing token');
+    const supabase = getSupabaseClient();
+    
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+    
+    const { data, error } = await supabase.auth.refreshSession();
+    
+    if (error) {
+      throw error;
+    }
+    
+    if (data.session) {
+      // Update session in Redux store - using a custom event instead of direct store dispatch
+      // to avoid circular dependency
+      window.dispatchEvent(new CustomEvent('session-updated', {
+        detail: { session: data.session }
+      }));
+      
+      // Store the new token
+      localStorage.setItem('access_token', data.session.access_token);
+      
+      // Store the new expiry if available
+      if (data.session.expires_at) {
+        localStorage.setItem('token_expires_at', String(data.session.expires_at));
+      } else if (data.session.expires_in) {
+        const expiresAt = Math.floor(Date.now() / 1000) + Number(data.session.expires_in);
+        localStorage.setItem('token_expires_at', String(expiresAt));
+      }
+      
+      logger.info('[API] Token refreshed successfully');
+      
+      // Process pending requests
+      pendingRequests.forEach(callback => callback());
+      pendingRequests = [];
+      
+      return data.session.access_token;
+    } else {
+      throw new Error('No session returned from refresh');
+    }
+  } catch (error) {
+    logger.error('[API] Token refresh failed:', error);
+    
+    // Process pending requests with error
+    pendingRequests.forEach(callback => callback());
+    pendingRequests = [];
+    
+    // Dispatch event for auth components to handle
+    window.dispatchEvent(new CustomEvent('sessionExpired', {
+      detail: { reason: 'Token refresh failed' }
+    }));
+    
+    throw error;
+  } finally {
+    isRefreshing = false;
+  }
+};
+
+// Request interceptor - add auth token
+api.interceptors.request.use(
+  async (config) => {
+    // Skip authentication for public endpoints
+    if (config.url?.includes('/public/') || config.headers.skipAuth) {
+      return config;
+    }
+    
+    // Check if token is expired or about to expire
+    if (isTokenExpired()) {
+      try {
+        const newToken = await refreshToken();
+        config.headers.Authorization = `Bearer ${newToken}`;
+      } catch (error) {
+        // Let the request proceed without token and fail with 401
+        // This will be caught by the response interceptor
+        logger.warn('[API] Proceeding with request without valid token');
+      }
+    } else {
+      // Use existing token
+      const token = getAccessToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor - handle 401 Unauthorized
 api.interceptors.response.use(
   (response) => {
-    // CRITICAL FIX: Remove this request from the tracking array
-    if (typeof window !== 'undefined' && window._pendingRequests && response.config?._requestId) {
-      const index = window._pendingRequests.findIndex(controller =>
-        controller._requestId === response.config._requestId
-      );
-      if (index !== -1) {
-        window._pendingRequests.splice(index, 1);
-      }
-    }
     return response;
   },
   async (error) => {
     const originalRequest = error.config;
-
-    // CRITICAL FIX: Remove this request from the tracking array
-    if (typeof window !== 'undefined' && window._pendingRequests && originalRequest?._requestId) {
-      const index = window._pendingRequests.findIndex(controller =>
-        controller._requestId === originalRequest._requestId
-      );
-      if (index !== -1) {
-        window._pendingRequests.splice(index, 1);
-      }
-    }
-
-    // Don't retry if this is already a retry
-    if (originalRequest?._isRetry) {
-      logger.error('[API] Retry failed, triggering session expired event');
+    
+    // If request failed due to 401 Unauthorized and it hasn't been retried yet
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
       
-      // Dispatch session-expired event to match our new event handler
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('session-expired'));
-      }
-      
-      return Promise.reject(error);
-    }
-
-    // Only handle 401/403 errors
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Don't retry for certain paths
-      const skipRefreshPaths = [
-        '/auth/login',
-        '/auth/logout',
-        '/auth/refresh',
-        '/auth/register'
-      ];
-      
-      if (originalRequest && skipRefreshPaths.some(path => originalRequest.url?.includes(path))) {
-        logger.info(`[API] Skipping token refresh for auth path: ${originalRequest.url}`);
-        return Promise.reject(error);
-      }
-
-      const now = Date.now();
-
-      // Check if we're refreshing too frequently
-      if (now - lastRefreshTime < minRefreshInterval) {
-        logger.warn('[API] Token refresh attempted too soon after previous refresh');
-        refreshAttempts++;
-
-        // If we've tried too many times in quick succession, trigger session expired
-        if (refreshAttempts >= maxRefreshAttempts) {
-          logger.error(`[API] Maximum refresh attempts (${maxRefreshAttempts}) reached`);
-          refreshAttempts = 0; // Reset for future attempts
-
-          // Dispatch session-expired event to match our new event handler
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('session-expired'));
-            logger.info('[API] Session expired event dispatched due to max refresh attempts');
-          }
-
-          return Promise.reject(error);
-        }
-      } else {
-        // Reset attempts counter if enough time has passed
-        refreshAttempts = 1;
-      }
-
-      lastRefreshTime = now;
-      logger.info('[API] Received 401/403 error, attempting to refresh token');
-
-      // Use a single refresh promise for multiple concurrent requests
-      if (refreshPromise) {
-        logger.info('[API] Using existing refresh promise');
-        try {
-          const newToken = await refreshPromise;
-          if (newToken) {
-            logger.info('[API] Token refreshed successfully via shared promise, retrying request');
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-            originalRequest._isRetry = true;
-            return api(originalRequest);
-          }
-        } catch (e) {
-          logger.error('[API] Shared refresh promise failed:', e);
-        }
-      }
-
-      // Create a new refresh promise
       try {
-        refreshPromise = tokenManager.refreshToken();
-        const newToken = await refreshPromise;
-        refreshPromise = null;
-
-        if (newToken) {
-          logger.info('[API] Token refreshed successfully, retrying request');
-          originalRequest.headers.Authorization = `Bearer ${newToken}`;
-          api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-          originalRequest._isRetry = true;
-          return api(originalRequest);
-        } else {
-          logger.error('[API] Token refresh returned null token');
-          
-          // Dispatch session-expired event to match our new event handler
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('session-expired'));
-            logger.info('[API] Session expired event dispatched due to null refresh token');
-          }
-
-          return Promise.reject(error);
-        }
-      } catch (refreshError) {
-        logger.error('[API] Error refreshing token:', refreshError);
-        refreshPromise = null;
+        // Refresh token
+        const newToken = await refreshToken();
         
-        // Dispatch session-expired event to match our new event handler
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new Event('session-expired'));
-          logger.info('[API] Session expired event dispatched due to refresh error');
-        }
-
+        // Update the request with new token
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        
+        // Retry the request
+        return await axios(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, let the error propagate
+        logger.error('[API] Failed to refresh token on 401 response:', refreshError);
+        
+        // Dispatch session expired event
+        window.dispatchEvent(new CustomEvent('sessionExpired', {
+          detail: { reason: 'Authentication failed', originalError: error }
+        }));
+        
         return Promise.reject(error);
       }
     }
-
-    // For other errors, simply reject the promise
+    
     return Promise.reject(error);
   }
 );
@@ -289,9 +242,10 @@ api.interceptors.response.use(
 // Helper method to get current auth state
 api.getAuthState = async () => {
   try {
-    const token = await tokenManager.getValidToken();
+    const token = await getAccessToken();
     if (!token) return null;
 
+    const supabase = getSupabaseClient();
     const session = await supabase.auth.getSession();
     return session?.data?.session || null;
   } catch (error) {

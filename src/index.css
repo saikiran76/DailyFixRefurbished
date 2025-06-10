@@ -45,6 +45,20 @@
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
     --sidebar-background: 0 0% 98%;
+
+    /* Glow effect variables */
+    --px: 0;
+    --py: 0;
+    --spotlight-size: 200px;
+    --border-size: 1px;
+    --glow-radius: 12px;
+    --telegram-hue: 200;
+    --whatsapp-hue: 120;
+    --saturation: 80;
+    --lightness: 60;
+    --bg-spot-opacity: 0.1;
+    --border-spot-opacity: 0.8;
+    --border-light-opacity: 1;
   }
 
   html {
@@ -245,5 +259,95 @@ button:focus-visible {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Glow effect styles */
+@layer components {
+  .chat-glow-base {
+    position: relative;
+    border: var(--border-size) solid hsl(0 0% 20% / 0.3);
+    border-radius: var(--glow-radius);
+    background-attachment: fixed;
+    background-size: calc(100% + (2 * var(--border-size))) calc(100% + (2 * var(--border-size)));
+    background-position: 50% 50%;
+    background-repeat: no-repeat;
+  }
+
+  .chat-glow-base::before,
+  .chat-glow-base::after {
+    content: "";
+    position: absolute;
+    inset: calc(var(--border-size) * -1);
+    border: var(--border-size) solid transparent;
+    border-radius: var(--glow-radius);
+    background-attachment: fixed;
+    background-size: calc(100% + (2 * var(--border-size))) calc(100% + (2 * var(--border-size)));
+    background-repeat: no-repeat;
+    background-position: 50% 50%;
+    pointer-events: none;
+    mask: linear-gradient(transparent, transparent), linear-gradient(white, white);
+    mask-clip: padding-box, border-box;
+    mask-composite: intersect;
+  }
+
+  /* Telegram glow effect (blue) */
+  .chat-glowing-border {
+    @apply chat-glow-base;
+    background-image: radial-gradient(
+      var(--spotlight-size) var(--spotlight-size) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(var(--telegram-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%) / var(--bg-spot-opacity)), 
+      transparent
+    );
+  }
+
+  .chat-glowing-border::before {
+    background-image: radial-gradient(
+      calc(var(--spotlight-size) * 0.75) calc(var(--spotlight-size) * 0.75) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(var(--telegram-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%) / var(--border-spot-opacity)), 
+      transparent
+    );
+    filter: brightness(1.5);
+  }
+
+  .chat-glowing-border::after {
+    background-image: radial-gradient(
+      calc(var(--spotlight-size) * 0.4) calc(var(--spotlight-size) * 0.4) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(0 0% 100% / var(--border-light-opacity)), 
+      transparent
+    );
+  }
+
+  /* WhatsApp glow effect (green) */
+  .whatsapp-glowing-border {
+    @apply chat-glow-base;
+    background-image: radial-gradient(
+      var(--spotlight-size) var(--spotlight-size) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(var(--whatsapp-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%) / var(--bg-spot-opacity)), 
+      transparent
+    );
+  }
+
+  .whatsapp-glowing-border::before {
+    background-image: radial-gradient(
+      calc(var(--spotlight-size) * 0.75) calc(var(--spotlight-size) * 0.75) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(var(--whatsapp-hue) calc(var(--saturation) * 1%) calc(var(--lightness) * 1%) / var(--border-spot-opacity)), 
+      transparent
+    );
+    filter: brightness(1.5);
+  }
+
+  .whatsapp-glowing-border::after {
+    background-image: radial-gradient(
+      calc(var(--spotlight-size) * 0.4) calc(var(--spotlight-size) * 0.4) at
+      calc(var(--px) * 1px) calc(var(--py) * 1px),
+      hsl(0 0% 100% / var(--border-light-opacity)), 
+      transparent
+    );
   }
 }

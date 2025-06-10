@@ -43,16 +43,29 @@ export function ThemeProvider({
         : "light";
 
       console.log('[ThemeProvider] System theme detected:', systemTheme);
-      
-      // Force light mode for now to fix visibility issues
-      root.classList.add("light");
+      root.classList.add(systemTheme);
       return;
     }
 
     console.log('[ThemeProvider] Setting theme to:', theme);
+    root.classList.add(theme);
+
+    // Listen for system theme changes if using system theme
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     
-    // Force light mode for now to fix visibility issues
-    root.classList.add("light");
+    const handleChange = () => {
+      const currentTheme = localStorage.getItem(storageKey) as Theme;
+      if (currentTheme === 'system') {
+        root.classList.remove('light', 'dark');
+        const newSystemTheme = mediaQuery.matches ? 'dark' : 'light';
+        root.classList.add(newSystemTheme);
+        console.log('[ThemeProvider] System theme changed to:', newSystemTheme);
+      }
+    };
+    
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+    
   }, [theme]);
 
   const value = {

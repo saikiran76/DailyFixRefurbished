@@ -290,8 +290,15 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
         return;
       }
       
+      // Log active platform for debugging
+      const activePlatform = localStorage.getItem('dailyfix_active_platform');
+      logger.info(`[WhatsAppContactList] Active platform in localStorage: ${activePlatform}`);
+      
       logger.info('[WhatsAppContactList] Fetching contacts...');
-      const result = await dispatch(fetchContacts(session.user.id)).unwrap();
+      const result = await dispatch(fetchContacts({
+        userId: session.user.id,
+        platform: 'whatsapp'
+      })).unwrap();
       logger.info('[Contacts fetch log from component] result: ', result);
 
       if (result?.inProgress) {
@@ -366,7 +373,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
           progress: 100
         });
         if (session?.user?.id) {
-          dispatch(fetchContacts(session.user.id));
+          dispatch(fetchContacts({
+            userId: session.user.id,
+            platform: 'whatsapp'
+          }));
         }
       }
     }, 60000); // 1 minute timeout
@@ -386,7 +396,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
         throw new Error('No valid user ID in session');
       }
 
-      const result = await dispatch(freshSyncContacts(session.user.id)).unwrap();
+      const result = await dispatch(freshSyncContacts({
+        userId: session.user.id,
+        platform: 'whatsapp'
+      })).unwrap();
 
       // Check if we have a request ID to track
       if (result?.meta?.sync_info?.request_id) {
@@ -503,7 +516,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
 
           // Fetch the updated contacts
           if (session?.user?.id) {
-            dispatch(fetchContacts(session.user.id));
+            dispatch(fetchContacts({
+              userId: session.user.id,
+              platform: 'whatsapp'
+            }));
           }
           return;
         }
@@ -530,7 +546,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
 
               // Fetch the updated contacts
               if (session?.user?.id) {
-                dispatch(fetchContacts(session.user.id));
+                dispatch(fetchContacts({
+                  userId: session.user.id,
+                  platform: 'whatsapp'
+                }));
               }
               return;
             }
@@ -551,7 +570,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
 
           // Fetch the updated contacts
           if (session?.user?.id) {
-            dispatch(fetchContacts(session.user.id));
+            dispatch(fetchContacts({
+              userId: session.user.id,
+              platform: 'whatsapp'
+            }));
           }
 
           toast.success('Contacts refreshed successfully');
@@ -576,7 +598,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
 
           // Fetch the updated contacts anyway
           if (session?.user?.id) {
-            dispatch(fetchContacts(session.user.id));
+            dispatch(fetchContacts({
+              userId: session.user.id,
+              platform: 'whatsapp'
+            }));
           }
         }
 
@@ -598,7 +623,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
 
           // Fetch whatever contacts are available
           if (session?.user?.id) {
-            dispatch(fetchContacts(session.user.id));
+            dispatch(fetchContacts({
+              userId: session.user.id,
+              platform: 'whatsapp'
+            }));
           }
         }
       }
@@ -851,8 +879,34 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
     );
   }, [filteredContacts, searchQuery]);
 
+  // Listen for platform change event that requires a contact refresh
+  useEffect(() => {
+    const handlePlatformRefresh = (event: CustomEvent) => {
+      if (event.detail?.platform === 'whatsapp') {
+        logger.info('[WhatsappContactList] Received platform-contact-refresh event for WhatsApp');
+        // Trigger contact refresh
+        handleRefresh();
+      }
+    };
+    
+    window.addEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-contact-refresh', handlePlatformRefresh as EventListener);
+    };
+  }, [handleRefresh]);
+
+  useEffect(() => {
+    if (!session) {
+      logger.warn('[WhatsAppContactList] No session found, redirecting to login');
+      navigate('/login');
+      return;
+    }
+    loadContactsWithRetry();
+  }, [session, navigate, loadContactsWithRetry]);
+
   return (
-    <Card className="contact-list-container whatsapp-contact-list flex flex-col h-full w-[100%] md:w-full border-none shadow-none">
+    <Card className="contact-list-container whatsapp-contact-list flex flex-col h-full w-[100%] md:w-full border-none shadow-none rounded-lg">
       {/* Header */}
       <CardHeader className="p-4 bg-neutral-900 border-b border-gray-200">
         <div className="flex items-center justify-between">
