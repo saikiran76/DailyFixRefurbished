@@ -97,7 +97,7 @@ export const PlatformSwitcher = ({
       }, 0);
       
       // Show a simple toast notification - avoid complex objects that might cause initialization issues
-      toast(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}. Contacts will be refreshed.`);
+      toast(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}. PLEASE HIT REFRESH BUTTON.`);
       
       logger.info(`[PlatformSwitcher] Showed platform switch notification for ${platformId}`);
     }
