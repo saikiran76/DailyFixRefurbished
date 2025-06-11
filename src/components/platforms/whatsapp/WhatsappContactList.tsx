@@ -70,6 +70,36 @@ const PriorityBubble = ({ priority }) => {
   );
 };
 
+// New PriorityBadge component similar to TelegramContactList
+const PriorityBadge = ({ priority }) => {
+  if (!priority) return null;
+  
+  const getVariantAndClass = () => {
+    switch (priority) {
+      case 'high':
+        return { variant: 'destructive', className: 'bg-red-500 text-white rounded' };
+      case 'medium':
+        return { variant: 'default', className: 'bg-yellow-500 bg-opacity-70 text-black rounded' };
+      case 'low':
+        return { variant: 'secondary', className: 'bg-green-600 text-white/80 rounded-lg' };
+      default:
+        return { variant: 'outline', className: 'bg-gray-400 bg-opacity-70 text-white rounded' };
+    }
+  };
+  
+  const { variant, className } = getVariantAndClass();
+  const label = priority.charAt(0).toUpperCase() + priority.slice(1);
+  
+  return (
+    <Badge 
+      variant={variant}
+      className={`text-xs font-medium py-0.5 px-2 rounded ${className}`}
+    >
+      {label} Priority
+    </Badge>
+  );
+};
+
 // Contact Avatar component
 const ContactAvatar = ({ contact, size = 40 }) => {
   const avatarUrl = contact.avatar_url || null;
@@ -134,8 +164,6 @@ const ContactItem = memo(({ contact, onClick, isSelected }: { contact: any, onCl
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      <PriorityBubble priority={priority} />
-
       {showTooltip && (
         <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-2 bg-[#1a1b26] p-1 rounded shadow-lg z-10">
           <TooltipProvider>
@@ -192,9 +220,16 @@ const ContactItem = memo(({ contact, onClick, isSelected }: { contact: any, onCl
               autoFocus
             />
           ) : (
-            <h3 className="text-black font-semibold text-base truncate">
-              {contact.display_name}
-            </h3>
+            <div className="flex flex-col">
+              <h3 className="text-black font-semibold text-base truncate">
+                {contact.display_name}
+              </h3>
+              {priority && (
+                <div className="mt-0.5">
+                  <PriorityBadge priority={priority} />
+                </div>
+              )}
+            </div>
           )}
           {contact.last_message_at && !isEditing && (
             <span className="text-xs text-gray-500 flex-shrink-0 ml-2">
@@ -203,7 +238,7 @@ const ContactItem = memo(({ contact, onClick, isSelected }: { contact: any, onCl
           )}
         </div>
         {contact.last_message && !isEditing && (
-          <p className="text-sm text-black truncate">
+          <p className="text-sm text-black truncate mt-1">
             {contact.last_message}
           </p>
         )}
@@ -661,6 +696,11 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
         membership: contact?.membership,
         contact: contact
       });
+      
+      // Add mobile debugging
+      console.log('[DEBUG Mobile] Contact selected in WhatsApp list:', contact);
+      
+      // Remove tooltips immediately to prevent UI interference
       const tooltips = document.querySelectorAll('.tooltip');
       tooltips.forEach(t => t.remove());
 
@@ -677,10 +717,17 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
               });
               const updatedContact = response.data.contact || { ...contact, membership: 'join' };
               dispatch(updateContactMembership({ contactId: contact.id, updatedContact }));
+              
+              // Ensure selection is called with the updated contact
+              console.log('[DEBUG Mobile] Passing updated contact to parent:', updatedContact);
               onContactSelect(updatedContact);
             } else if (response.data?.joinedBefore) {
               logger.info('[WhatsAppContactList] Contact was already joined:', contact.id);
-              onContactSelect({ ...contact, membership: 'join' });
+              
+              // Make sure the contact has updated membership
+              const updatedContact = { ...contact, membership: 'join' };
+              console.log('[DEBUG Mobile] Contact already joined, selecting with updated membership:', updatedContact);
+              onContactSelect(updatedContact);
             } else {
               logger.warn('[WhatsAppContactList] Invite acceptance failed:', {
                 contactId: contact.id,
@@ -703,10 +750,12 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
           toast.error('You are banned from this chat');
           return;
         case 'join':
+          console.log('[DEBUG Mobile] Contact has join membership, selecting directly');
           onContactSelect({ ...contact });
           break;
         case undefined:
           logger.warn('[WhatsAppContactList] Contact has no membership state:', contact);
+          console.log('[DEBUG Mobile] Contact has no membership, selecting anyway');
           onContactSelect({ ...contact });
           break;
         default:
@@ -1024,7 +1073,19 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
                 key={contact.id}
                 contact={contact}
                 isSelected={contact.id === selectedContactId}
-                onClick={() => handleContactSelect(contact)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DEBUG Mobile] Contact clicked:', contact.display_name);
+                  handleContactSelect(contact);
+                }}
+                className="cursor-pointer active:bg-gray-700 hover:bg-gray-700 transition-colors duration-200"
+                onTouchStart={(e) => e.currentTarget.classList.add('bg-gray-700')}
+                onTouchEnd={(e) => {
+                  e.currentTarget.classList.remove('bg-gray-700');
+                  e.preventDefault();
+                  handleContactSelect(contact);
+                }}
               />
             ))}
           </div>
