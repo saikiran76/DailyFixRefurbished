@@ -974,14 +974,23 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           </div>
         ) : !searchedContacts?.length ? (
           <div className="flex flex-col items-center justify-center p-4 h-full min-h-[300px]">
-            <p className="text-gray-500">
-              {searchQuery
-                ? `No contacts found matching "${searchQuery}"`
-                : syncProgress
-                  ? 'Syncing contacts...'
-                  : 'Application syncs new contacts with new messages 🔃'
-              }
-            </p>
+            {searchQuery ? (
+              <p className="text-gray-500">No contacts found matching "{searchQuery}"</p>
+            ) : syncProgress ? (
+              <p className="text-gray-500">Syncing contacts...</p>
+            ) : (
+              <>
+                <img 
+                  src="https://miro.medium.com/v2/resize:fit:1100/format:webp/0*d94Rn5bObhShU7YV.gif" 
+                  alt="Waiting for contacts" 
+                  className="w-32 h-32 mb-4"
+                />
+                <p className="text-gray-500 text-center">
+                  Application syncs new contacts with new messages.<br />
+                  Keep track of the refresh button
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="contact-list divide-y divide-gray-200">

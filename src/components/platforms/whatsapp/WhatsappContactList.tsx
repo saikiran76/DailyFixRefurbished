@@ -167,22 +167,22 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
     >
       {showTooltip && (
         <div className="absolute right-2 top-2 flex gap-2">
-          <Button
-            onClick={handleEdit}
-            variant="ghost"
-            size="icon"
+                <Button
+                  onClick={handleEdit}
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                >
+                  <FiEdit3 size={20} />
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  variant="ghost"
+                  size="icon"
             className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-          >
-            <FiEdit3 size={20} />
-          </Button>
-          <Button
-            onClick={handleDelete}
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
-          >
-            <BiSolidHide size={20} />
-          </Button>
+                >
+                  <BiSolidHide size={20} />
+                </Button>
         </div>
       )}
       <div className="flex items-center gap-3">
@@ -211,8 +211,8 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
         </div>
         {!isEditing && contact.last_message_at && (
           <div className="text-gray-400 text-xs flex-shrink-0">
-            {format(new Date(contact.last_message_at), 'HH:mm')}
-          </div>
+              {format(new Date(contact.last_message_at), 'HH:mm')}
+        </div>
         )}
       </div>
     </div>
@@ -1025,14 +1025,23 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
           </div>
         ) : !searchedContacts?.length ? (
           <div className="flex flex-col items-center justify-center p-4 h-full min-h-[300px]">
-            <p className="text-gray-500">
-              {searchQuery
-                ? `No contacts found matching "${searchQuery}"`
-                : syncProgress
-                  ? 'Syncing contacts...'
-                  : 'Application syncs new contacts with new messages 🔃'
-              }
+            {searchQuery ? (
+              <p className="text-gray-500">No contacts found matching "{searchQuery}"</p>
+            ) : syncProgress ? (
+              <p className="text-gray-500">Syncing contacts...</p>
+            ) : (
+              <>
+                <img 
+                  src="https://miro.medium.com/v2/resize:fit:1100/format:webp/0*d94Rn5bObhShU7YV.gif" 
+                  alt="Waiting for contacts" 
+                  className="w-32 h-32 mb-4"
+                />
+                <p className="text-gray-500 text-center">
+                  Application syncs new contacts with new messages.<br />
+                  Keep track of the refresh button
             </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="contact-list divide-y divide-gray-200">
