@@ -354,7 +354,7 @@ export default function Page() {
 
   return (
     <SidebarProvider 
-      className="h-screen whatsapp-glowing-border"
+      className="h-screen"
       defaultOpen={false}
       open={false}
       onOpenChange={() => {}}

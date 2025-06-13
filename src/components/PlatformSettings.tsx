@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, Loader2, Images, HelpCircle, BookOpen } from "lucide-react";
 import platformManager from '@/services/PlatformManager';
 import { useSelector } from 'react-redux';
-import WhatsAppBridgeSetup from '@/components/platforms/whatsapp/whatsappBridgeSetup';
+import WhatsAppBridgeSetup, { resetWhatsappSetupFlags } from '@/components/platforms/whatsapp/whatsappBridgeSetup';
 import { toast } from 'react-hot-toast';
 import api from '@/utils/api';
 import { saveWhatsAppStatus, saveTelegramStatus } from '@/utils/connectionStorage';
@@ -38,7 +38,8 @@ const PlatformItem = ({
   subtitle,
   requiresAuth,
   isInitializing,
-  isDisconnecting
+  isDisconnecting,
+  disabled
 }: { 
   platform: string; 
   isConnected: boolean; 
@@ -49,6 +50,7 @@ const PlatformItem = ({
   requiresAuth?: boolean;
   isInitializing?: boolean;
   isDisconnecting?: boolean;
+  disabled?: boolean;
 }) => {
   return (
     <div className="flex items-center justify-between px-4 py-6">
@@ -74,12 +76,15 @@ const PlatformItem = ({
         {isDisconnecting && (
           <Loader2 className="h-4 w-4 text-red-500 animate-spin mr-2" />
         )}
+        {disabled && !isInitializing && !isDisconnecting && (
+          <span className="text-sm text-gray-400 mr-2">Setup in progress</span>
+        )}
         <Checkbox 
           id={`toggle-${platform}`}
           checked={isConnected}
           onCheckedChange={(checked) => onToggle(platform, checked as boolean)}
           className="data-[state=checked]:bg-blue-600"
-          disabled={isInitializing || isDisconnecting}
+          disabled={disabled || isInitializing || isDisconnecting}
         />
       </div>
     </div>
@@ -261,6 +266,8 @@ const PlatformSettings = () => {
   const handleWhatsAppSetupCancel = () => {
     setShowWhatsAppSetup(false);
     setInitializingPlatform(null);
+    logger.info('[PlatformSettings] WhatsApp setup cancelled, resetting flags.');
+    resetWhatsappSetupFlags(true);
   };
 
   // Handle Telegram setup completion
@@ -275,6 +282,8 @@ const PlatformSettings = () => {
   const handleTelegramSetupCancel = () => {
     setShowTelegramSetup(false);
     setInitializingPlatform(null);
+    logger.info('[PlatformSettings] Telegram setup cancelled, resetting flags.');
+    resetTelegramSetupFlags(true);
   };
 
   // Add the missing confirmDisconnect function
@@ -321,6 +330,9 @@ const PlatformSettings = () => {
     }
   };
 
+  // Calculate if any setup is in progress
+  const anySetupInProgress = initializingPlatform !== null || showWhatsAppSetup || showTelegramSetup || isDisconnecting || showDisconnectDialog;
+
   return (
     <div className=" bg-[#131516] space-y-6">
       <Tabs defaultValue="accounts" className="w-full">
@@ -362,6 +374,7 @@ const PlatformSettings = () => {
                   requiresAuth={meta.requiresAuth}
                   isInitializing={initializingPlatform === platform}
                   isDisconnecting={isDisconnecting && disconnectingPlatform === platform}
+                  disabled={anySetupInProgress}
                 />
               );
             })}
