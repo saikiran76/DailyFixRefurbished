@@ -201,6 +201,8 @@ const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) =>
   );
 });
 
+ContactItem.displayName = 'ContactItem';
+
 // Add a "Connect telegram" component
 const telegramNotConnected = () => {
   const navigate = useNavigate();
@@ -269,7 +271,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const [refreshCooldown, setRefreshCooldown] = useState(false);
   const [refreshTooltip, setRefreshTooltip] = useState('');
   const [refreshRequired, setRefreshRequired] = useState(true);
-  const refreshButtonRef = useRef(null);
+  const refreshButtonRef = useRef<HTMLButtonElement>(null);
   const syncStatusPollingRef = useRef(null);
 
   const loadContactsWithRetry = useCallback(async (retryCount = 0) => {
