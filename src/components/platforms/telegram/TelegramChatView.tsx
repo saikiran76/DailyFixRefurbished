@@ -125,7 +125,7 @@ const spinVariants = {
 };
 
 // Priority Badge component
-const PriorityBadge = ({ priority, onClick }) => {
+const PriorityBadge = ({ priority, onClick }: { priority?: string, onClick: () => void }) => {
   if (!priority) return null;
   
   const getVariantAndClass = () => {
@@ -155,7 +155,7 @@ const PriorityBadge = ({ priority, onClick }) => {
   );
 };
 
-const SyncProgressIndicator = ({ syncState, loadingState }) => {
+const SyncProgressIndicator = ({ syncState, loadingState }: { syncState: any, loadingState: string }) => {
   const getStatusColor = () => {
     if (syncState.state === SYNC_STATES.REJECTED) {
         return 'bg-red-500';
@@ -167,7 +167,7 @@ const SyncProgressIndicator = ({ syncState, loadingState }) => {
   };
 
   // Hide the indicator if loading is complete or sync is complete
-  if (loadingState === LOADING_STATES.COMPLETE ||
+  if (loadingState === 'complete' ||
       (syncState.state === SYNC_STATES.APPROVED && syncState.progress === 100)) {
     return null;
   }
@@ -175,9 +175,9 @@ const SyncProgressIndicator = ({ syncState, loadingState }) => {
   // Show appropriate loading message based on state
   const getMessage = () => {
     switch (loadingState) {
-      case LOADING_STATES.CONNECTING:
+      case 'connecting':
         return 'Connecting to chat room...';
-      case LOADING_STATES.FETCHING:
+      case 'fetching':
         return 'Getting your messages...';
       default:
         return syncState.details;
@@ -212,29 +212,8 @@ const SyncProgressIndicator = ({ syncState, loadingState }) => {
   );
 };
 
-const handleSyncError = (error, contactId) => {
-  const errorMessage = error?.response?.data?.message || error?.message || 'An unknown error occurred';
-
-  setSyncState(prev => ({
-    ...prev,
-    state: SYNC_STATES.REJECTED,
-    errors: [...prev.errors, {
-      message: errorMessage,
-      timestamp: Date.now()
-    }]
-  }));
-
-  setError(`Message sync failed: ${errorMessage}`);
-
-  console.error('[ChatView] Sync error:', {
-    contactId,
-    error: errorMessage,
-    timestamp: new Date().toISOString()
-  });
-};
-
 // Socket error specific fallback
-const SocketErrorFallback = ({ onRetry }) => {
+const SocketErrorFallback = ({ onRetry }: { onRetry: () => void }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full p-4 text-center">
       <Card className="max-w-md w-full bg-neutral-800 border-neutral-700">
@@ -271,7 +250,7 @@ const SocketErrorFallback = ({ onRetry }) => {
   );
 };
 
-const ErrorFallback = ({ error }) => {
+const ErrorFallback = ({ error }: { error: Error }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full p-4">
       <Card className="max-w-md w-full bg-neutral-800 border-neutral-700">
@@ -302,7 +281,8 @@ const ErrorFallback = ({ error }) => {
 const CONNECTION_STATUS = {
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
-  CONNECTING: 'connecting'
+  CONNECTING: 'connecting',
+  ERROR: 'error'
 };
 
 // Add new loading state constant
@@ -315,7 +295,7 @@ const LOADING_STATES = {
   ERROR: 'error'
 };
 
-const LoadingChatView = ({ details }) => {
+const LoadingChatView = ({ details }: { details: string }) => {
   // Select a random fun fact
   const randomFact = SOCIAL_MEDIA_FUN_FACTS[Math.floor(Math.random() * SOCIAL_MEDIA_FUN_FACTS.length)];
 
@@ -358,24 +338,23 @@ const LoadingChatView = ({ details }) => {
   );
 };
 
-const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
-  const dispatch = useDispatch();
+const ChatView = ({ selectedContact, onContactUpdate, onClose }: { selectedContact: any, onContactUpdate: (contact: any) => void, onClose: () => void }) => {
+  const dispatch: any = useDispatch();
   const navigate = useNavigate();
-  const currentUser = useSelector((state) => state.auth.session?.user);
+  const currentUser = useSelector((state: any) => state.auth?.session?.user);
   const { socket, isConnected } = useSocketConnection('telegram');
   const isRefreshing = useSelector(selectRefreshing);
 
   // Redux message selectors
-  const messagesState = useSelector((state) => state.messages);
-  const messages = useSelector((state) => selectMessages(state, selectedContact?.id) || []);
-  const loading = useSelector((state) => selectMessageLoading(state) || false);
-  const error = useSelector((state) => selectMessageError(state) || null);
-  const hasMoreMessages = useSelector((state) => selectHasMoreMessages(state) || false);
-  const currentPage = useSelector((state) => selectCurrentPage(state) || 0);
-  const messageQueue = useSelector((state) => selectMessageQueue(state) || []);
-  const unreadMessageIds = useSelector((state) => selectUnreadMessageIds(state) || []);
+  const messages = useSelector((state: any) => selectMessages(state, selectedContact?.id) || []);
+  const loading = useSelector((state: any) => selectMessageLoading(state) || false);
+  const error = useSelector((state: any) => selectMessageError(state) || null);
+  const hasMoreMessages = useSelector((state: any) => selectHasMoreMessages(state) || false);
+  const currentPage = useSelector((state: any) => selectCurrentPage(state) || 0);
+  const messageQueue = useSelector((state: any) => selectMessageQueue(state) || []);
+  const unreadMessageIds = useSelector((state: any) => selectUnreadMessageIds(state) || []);
   const isNewMessagesFetching = useSelector(selectNewMessagesFetching);
-  const lastKnownMessageId = useSelector((state) => selectLastKnownMessageId(state, selectedContact?.id));
+  const lastKnownMessageId = useSelector((state: any) => selectLastKnownMessageId(state, selectedContact?.id));
   const newMessagesError = useSelector(selectNewMessagesError);
 
   // Local state
@@ -400,13 +379,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [loadingState, setLoadingState] = useState(LOADING_STATES.IDLE);
-  const [syncState, setSyncState] = useState({
-    state: SYNC_STATES.IDLE,
-    progress: 0,
-    details: '',
-    processedMessages: 0,
-    totalMessages: 0,
-  });
+  const [syncState, setSyncState] = useState(INITIAL_SYNC_STATE);
   const [showChatbot, setShowChatbot] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [chatBackground, setChatBackground] = useState<string>("");
@@ -454,7 +427,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   }, [socket]);
 
   const handleMessageSend = useCallback(
-    async (content) => {
+    async (content: any) => {
       if (!selectedContact?.id) return;
 
       const message = { content };
@@ -514,7 +487,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       const response = await api.get(`/api/analysis/summary/${selectedContact.id}`);
 
       if (!response.data?.summary) {
-        toast.success('summary: ', response?.data);
+        toast.success('Summary is not available for this chat.');
         return;
       }
 
@@ -569,7 +542,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       } else {
         toast.info('No new messages');
       }
-    } catch (error) {
+    } catch (error: any) {
       logger.error('[ChatView] Error fetching new messages:', error);
       toast.error(error.message || 'Failed to fetch new messages');
     }
@@ -653,7 +626,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
             })
           )
             .unwrap()
-            .then((result) => {
+            .then((result: any) => {
               logger.info('[ChatView] Messages fetched successfully:', {
                 count: result.messages?.length,
                 hasMore: result.hasMore
@@ -668,7 +641,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 totalMessages: result.messages.length,
               }));
             })
-            .catch((error) => {
+            .catch((error: any) => {
               logger.error('[ChatView] Failed to fetch messages:', {
                 contactId: selectedContact.id,
                 error: error.message,
@@ -680,7 +653,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 progress: 0,
                 details: 'Failed to load messages',
                 errors: [
-                  ...prev.errors || [],
+                  ...(prev.errors || []),
                   {
                     message: error.message,
                     timestamp: Date.now(),
@@ -1030,7 +1003,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         state: SYNC_STATES.REJECTED,
         details: error || 'Failed to load messages',
         errors: [
-          ...prev.errors,
+          ...(prev.errors || []),
           { message: error || 'Failed to load messages', timestamp: Date.now() },
         ],
       }));
@@ -1353,8 +1326,9 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               overflowWrap: "break-word",
               maxWidth: "100%"
             }}
-            onScroll={async (e) => {
-              const { scrollTop, scrollHeight, clientHeight } = e.target;
+            onScroll={async (e: React.UIEvent<HTMLDivElement>) => {
+              const target = e.currentTarget;
+              const { scrollTop, scrollHeight, clientHeight } = target;
               if (scrollTop === 0 && hasMoreMessages && !loading) {
                 const nextPage = currentPage + 1;
                 await dispatch(
@@ -1457,4 +1431,3 @@ export const ChatViewWithErrorBoundary = (props) => (
 );
 
 export default ChatViewWithErrorBoundary;
-
