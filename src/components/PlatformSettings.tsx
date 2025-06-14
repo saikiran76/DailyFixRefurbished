@@ -417,7 +417,7 @@ const PlatformSettings = () => {
           <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
             <AlertDialogContent className="bg-black text-white border border-gray-800">
               <AlertDialogHeader>
-                <AlertDialogTitle>Disconnect {disconnectingPlatform?.charAt(0).toUpperCase() + disconnectingPlatform?.slice(1)}</AlertDialogTitle>
+                <AlertDialogTitle className="text-lg font-semibold">Disconnect {disconnectingPlatform?.charAt(0).toUpperCase() + disconnectingPlatform?.slice(1)}</AlertDialogTitle>
                 <AlertDialogDescription className="text-gray-400">
                   Are you sure you want to disconnect this platform? You'll need to reconnect to access your conversations again.
                 </AlertDialogDescription>
