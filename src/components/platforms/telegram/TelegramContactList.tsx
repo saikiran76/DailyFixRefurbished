@@ -93,8 +93,14 @@ const PriorityBadge = ({ priority }) => {
   );
 };
 
+interface ContactItemProps {
+  contact: any;
+  onClick: () => void;
+  isSelected: boolean;
+}
+
 // Contact item component using shadcn components
-const ContactItem = memo(({ contact, onClick, isSelected }) => {
+const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) => {
   const dispatch = useDispatch();
   const priority = useSelector(state => selectContactPriority(state, contact.id));
   const [isEditing, setIsEditing] = useState(false);
@@ -246,12 +252,12 @@ const NoPlatformsConnected = () => {
 };
 
 const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
-  const contacts = useSelector((state) => state.contacts.items);
+  const contacts = useSelector((state: any) => state.contacts.items);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const session = useSelector(state => state.auth.session);
-  const loading = useSelector((state) => state.contacts.loading);
-  const error = useSelector((state) => state.contacts.error);
+  const session = useSelector((state: any) => state.auth.session);
+  const loading = useSelector((state: any) => state.contacts.loading);
+  const error = useSelector((state: any) => state.contacts.error);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastManualRefreshTime, setLastManualRefreshTime] = useState(0);
@@ -274,7 +280,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       }
       
       logger.info('[telegramContactList] Fetching contacts...');
-      const result = await dispatch(fetchContacts({
+      const result = await (dispatch as any)(fetchContacts({
         userId: session.user.id,
         platform: 'telegram'
       })).unwrap();
@@ -332,7 +338,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
 
     const now = Date.now();
     if (now - lastManualRefreshTime < 3000) {
-      toast.info('Please wait a moment before refreshing again');
+      toast('Please wait a moment before refreshing again');
       return;
     }
 
@@ -346,12 +352,12 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         setRefreshCooldown(false);
         setIsRefreshing(false);
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync timed out, showing available contacts',
           progress: 100
         });
         if (session?.user?.id) {
-          dispatch(fetchContacts({
+          (dispatch as any)(fetchContacts({
             userId: session.user.id,
             platform: 'telegram'
           }));
@@ -374,7 +380,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         throw new Error('No valid user ID in session');
       }
 
-      const result = await dispatch(freshSyncContacts({
+      const result = await (dispatch as any)(freshSyncContacts({
         userId: session.user.id,
         platform: 'telegram'
       })).unwrap();
@@ -401,7 +407,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       } else {
         // Sync completed immediately
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync completed successfully',
           progress: 100
         });
@@ -426,7 +432,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
 
       toast.error('Sync encountered an issue: ' + errorMessage);
       setSyncProgress({
-        state: SYNC_STATES.ERROR,
+        state: SYNC_STATES.REJECTED,
         message: errorMessage,
         progress: 0
       });
@@ -487,14 +493,14 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed (timeout)',
             progress: 100
           });
 
           // Fetch the updated contacts
           if (session?.user?.id) {
-            dispatch(fetchContacts({
+            (dispatch as any)(fetchContacts({
               userId: session.user.id,
               platform: 'telegram'
             }));
@@ -517,14 +523,14 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
               clearInterval(pollInterval);
               setRefreshCooldown(false);
               setSyncProgress({
-                state: SYNC_STATES.COMPLETED,
+                state: SYNC_STATES.APPROVED,
                 message: 'Sync completed successfully',
                 progress: 100
               });
 
               // Fetch the updated contacts
               if (session?.user?.id) {
-                dispatch(fetchContacts({
+                (dispatch as any)(fetchContacts({
                   userId: session.user.id,
                   platform: 'telegram'
                 }));
@@ -541,14 +547,14 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed successfully',
             progress: 100
           });
 
           // Fetch the updated contacts
           if (session?.user?.id) {
-            dispatch(fetchContacts({
+            (dispatch as any)(fetchContacts({
               userId: session.user.id,
               platform: 'telegram'
             }));
@@ -569,14 +575,14 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed (timeout)',
             progress: 100
           });
 
           // Fetch the updated contacts anyway
           if (session?.user?.id) {
-            dispatch(fetchContacts({
+            (dispatch as any)(fetchContacts({
               userId: session.user.id,
               platform: 'telegram'
             }));
@@ -594,14 +600,14 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync status unknown, showing available contacts',
             progress: 100
           });
 
           // Fetch whatever contacts are available
           if (session?.user?.id) {
-            dispatch(fetchContacts({
+            (dispatch as any)(fetchContacts({
               userId: session.user.id,
               platform: 'telegram'
             }));
@@ -616,7 +622,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         clearInterval(pollInterval);
         logger.info('[telegramContactList] Safety cleanup triggered for sync polling');
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync timed out',
           progress: 100
         });
@@ -624,7 +630,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       if (refreshCooldown) {
         setRefreshCooldown(false);
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync status polling timed out',
           progress: 100
         });
@@ -635,7 +641,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const handleContactSelect = useCallback(async (contact) => {
     // Prevent contact selection if refresh is required
     if (refreshRequired) {
-      toast.info('Please refresh contacts first');
+      toast('Please refresh contacts first');
       return;
     }
     
