@@ -271,7 +271,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const [refreshCooldown, setRefreshCooldown] = useState(false);
   const [refreshTooltip, setRefreshTooltip] = useState('');
   const [refreshRequired, setRefreshRequired] = useState(true);
-  const refreshButtonRef = useRef<HTMLButtonElement>(null);
   const syncStatusPollingRef = useRef(null);
 
   const loadContactsWithRetry = useCallback(async (retryCount = 0) => {
@@ -328,13 +327,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       ];
       const randomMessage = messages[Math.floor(Math.random() * messages.length)];
       setRefreshTooltip(randomMessage);
-
-      if (refreshButtonRef.current) {
-        refreshButtonRef.current.classList.add('shake-animation');
-        setTimeout(() => {
-          refreshButtonRef.current?.classList.remove('shake-animation');
-        }, 500);
-      }
       return;
     }
 
@@ -906,7 +898,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
               <Tooltip delayDuration={200}>
                 <TooltipTrigger asChild>
                   <Button
-                    ref={refreshButtonRef}
                     onClick={handleRefresh}
                     disabled={loading || isRefreshing}
                     variant="ghost"

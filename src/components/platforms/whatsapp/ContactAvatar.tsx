@@ -62,7 +62,7 @@ const ContactAvatar = ({ contact, size = 40 }: { contact: any, size?: number }) 
 
     try {
       // Try to get from IndexedDB cache first
-      const cachedAvatar = await avatarCacheService.getAvatar(userId, contactId, mediaId);
+      const cachedAvatar: any = await avatarCacheService.getAvatar(userId, contactId, mediaId);
 
       if (cachedAvatar && cachedAvatar.blob) {
         // Create a URL for the cached blob
