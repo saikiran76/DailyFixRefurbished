@@ -32,13 +32,13 @@ const INITIAL_RETRY_DELAY = 1000;
 
 // Update the ShimmerContactList component with more visible styling
 const ShimmerContactList = () => (
-  <div className="space-y-4 p-4 bg-[#ECE5DD] h-full min-h-[300px]">
-    {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-      <div key={i} className="flex items-center space-x-4 p-3 bg-white/60 rounded-md animate-pulse">
-        <Skeleton className="h-12 w-12 rounded-full bg-gray-300" />
+  <div className="space-y-1 p-2">
+    {[...Array(10)].map((_, i) => (
+      <div key={i} className="flex items-center space-x-3 p-3 rounded-lg">
+        <Skeleton className="h-12 w-12 rounded-full bg-gray-800" />
         <div className="space-y-2 flex-1">
-          <Skeleton className="h-5 w-3/4 bg-gray-300" />
-          <Skeleton className="h-4 w-1/2 bg-gray-300" />
+          <Skeleton className="h-4 w-3/4 bg-gray-800" />
+          <Skeleton className="h-3 w-1/2 bg-gray-800" />
         </div>
       </div>
     ))}
@@ -46,13 +46,13 @@ const ShimmerContactList = () => (
 );
 
 // Contact Avatar component
-const ContactAvatar = ({ contact, size = 40 }) => {
+const ContactAvatar = ({ contact, size = 48 }) => {
   const avatarUrl = contact.avatar_url || null;
   const displayName = contact.display_name || 'Unknown';
   const initials = displayName.substring(0, 2).toUpperCase();
   
   return (
-    <Avatar className={`h-${size / 4} w-${size / 4}`}>
+    <Avatar className={`h-12 w-12`}>
       {avatarUrl ? (
         <AvatarImage src={avatarUrl} alt={displayName} />
       ) : null}
@@ -132,36 +132,37 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
 
   return (
     <div
-      className={`p-4 rounded-lg mb-2 bg-gray-800/50 hover:bg-gray-700/50 cursor-pointer transition-colors border border-gray-700/50 hover:border-gray-600 relative ${
-        isSelected ? 'bg-gray-700/50' : ''
+      className={`p-3 rounded-lg flex relative items-center gap-3 cursor-pointer transition-colors ${
+        isSelected ? 'bg-blue-600' : 'hover:bg-[#24303f]'
       }`}
       onClick={onClick}
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
       {showTooltip && (
-        <div className="absolute right-2 top-2 flex gap-2">
+        <div className="absolute right-2 top-2 flex gap-1 bg-gray-900/80 p-1 rounded-md z-10">
           <Button
             onClick={handleEdit}
             variant="ghost"
             size="icon"
-            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+            className="h-7 w-7 p-0 text-gray-400 hover:text-white"
           >
-            <FiEdit3 size={20} />
+            <FiEdit3 size={18} />
           </Button>
           <Button
             onClick={handleDelete}
             variant="ghost"
             size="icon"
-            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+            className="h-7 w-7 p-0 text-gray-400 hover:text-white"
           >
-            <BiSolidHide size={20} />
+            <BiSolidHide size={18} />
           </Button>
         </div>
       )}
-      <div className="flex items-center gap-3">
+      <div className="relative">
         <ContactAvatar contact={contact} />
-        <div className="flex-1 min-w-0">
+      </div>
+      <div className="flex-1 min-w-0">
           {isEditing ? (
             <Input
               ref={editInputRef}
@@ -169,26 +170,27 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
               onKeyDown={handleNameSubmit}
-              className="bg-gray-700 text-white px-2 py-1 rounded w-full border border-gray-600"
+              className="bg-gray-700 text-white px-2 py-1 rounded w-full border border-gray-600 h-8"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           ) : (
             <>
-              <div className="flex items-center gap-2">
-                <div className="text-white font-medium truncate">{contact.display_name}</div>
-                {priority && <PriorityBadge priority={priority} />}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className={`font-medium truncate ${isSelected ? 'text-white' : 'text-white'}`}>{contact.display_name}</div>
+                    {priority && <PriorityBadge priority={priority} />}
+                </div>
+                {contact.last_message_at && (
+                    <div className={`${isSelected ? 'text-white/80' : 'text-gray-400'} text-xs flex-shrink-0`}>
+                        {format(new Date(contact.last_message_at), 'HH:mm')}
+                    </div>
+                )}
               </div>
-              <div className="text-gray-400 text-sm truncate">{contact.last_message}</div>
+              <div className={`${isSelected ? 'text-white/90' : 'text-gray-400'} text-sm truncate mt-1`}>{contact.last_message}</div>
             </>
           )}
         </div>
-        {!isEditing && contact.last_message_at && (
-          <div className="text-gray-400 text-xs flex-shrink-0">
-            {format(new Date(contact.last_message_at), 'HH:mm')}
-          </div>
-        )}
-      </div>
     </div>
   );
 });
@@ -887,62 +889,61 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   }, [loadContactsWithRetry]);
 
   return (
-    <Card className="flex flex-col h-full w-full border-none shadow-none rounded-lg bg-gray-900 relative">
-      <CardHeader className="p-4 bg-gray-800 border-b border-gray-800">
+    <Card className="flex flex-col h-full w-full border-none shadow-none rounded-lg bg-[#17212b] relative">
+      <CardHeader className="p-3 bg-[#24303f] border-b border-gray-700/50">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-white font-bold text-xl">Telegram Chats</CardTitle>
+          <CardTitle className="text-white font-bold text-lg">Telegram Chats</CardTitle>
           <div className="flex items-center space-x-2 relative">
-            {isRefreshing ? (
-              <MdCloudSync className="animate-spin text-blue-500 w-6 h-6" />
-            ) : refreshCooldown ? (
-              <MdCloudSync className="text-blue-500 w-6 h-6 pulse-animation" />
-            ) : (
-              <FiRefreshCw className="text-blue-500 w-6 h-6" />
-            )}
-            <div className="flex flex-col">
-              <Button
-                ref={refreshButtonRef}
-                onClick={handleRefresh}
-                disabled={loading || isRefreshing}
-                variant="ghost"
-                className={`bg-gray-800 border-gray-700 text-white inline-flex px-3 py-1 items-center justify-center rounded-lg text-sm ${
-                  loading || isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'
-                } ${refreshCooldown ? 'bg-gray-700' : ''} ${refreshRequired ? 'animate-pulse bg-blue-700 hover:bg-blue-600' : ''}`}
-                onMouseEnter={() => refreshCooldown ? setRefreshTooltip('Sync in progress') : refreshRequired && setRefreshTooltip('Click to refresh contacts')}
-                onMouseLeave={() => setRefreshTooltip('')}
-              >
-                {isRefreshing ? 'Syncing...' : refreshCooldown ? 'Syncing...' : refreshRequired ? 'Refresh Required' : 'Refresh'}
-                {syncProgress && syncProgress.state === SYNC_STATES.SYNCING && syncProgress.progress > 0 && (
-                  <span className="ml-1 text-xs">{syncProgress.progress}%</span>
-                )}
-              </Button>
-              {syncProgress && syncProgress.state === SYNC_STATES.SYNCING && (
-                <Progress 
-                  value={syncProgress.progress || 0} 
-                  className="h-1 w-full bg-gray-700"
-                />
-              )}
-            </div>
-            {refreshTooltip && (
-              <div className="absolute top-full mt-2 right-0 bg-gray-800 text-white text-xs rounded py-1 px-2 z-10">
-                {refreshTooltip}
-              </div>
-            )}
+            <TooltipProvider>
+              <Tooltip delayDuration={200}>
+                <TooltipTrigger asChild>
+                  <Button
+                    ref={refreshButtonRef}
+                    onClick={handleRefresh}
+                    disabled={loading || isRefreshing}
+                    variant="ghost"
+                    size="icon"
+                    className={`h-9 w-9 text-gray-300 hover:bg-gray-700/50 hover:text-white ${
+                      loading || isRefreshing ? 'opacity-50 cursor-not-allowed' : ''
+                    } ${refreshCooldown ? 'animate-pulse' : ''} ${refreshRequired ? 'animate-pulse bg-blue-600 hover:bg-blue-500' : ''}`}
+                  >
+                    {isRefreshing || refreshCooldown ? (
+                      <MdCloudSync className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <FiRefreshCw className="w-5 h-5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-gray-800 text-white border-none">
+                  <p>{refreshTooltip || (refreshRequired ? 'Refresh Required' : 'Refresh Contacts')}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
+        {syncProgress && syncProgress.state === SYNC_STATES.SYNCING && (
+          <div className="mt-2">
+            <Progress 
+              value={syncProgress.progress || 0} 
+              className="h-1 w-full bg-gray-600"
+              indicatorClassName="bg-blue-500"
+            />
+             <p className="text-xs text-gray-300 mt-1">{syncProgress.message}</p>
+          </div>
+        )}
       </CardHeader>
 
       {/* Search Input */}
-      <div className="sticky top-0 z-10 p-4 bg-white border-b border-gray-200">
+      <div className="p-2 border-b border-gray-700/50">
         <div className="relative">
+          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 z-10" />
           <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search contacts..."
-            className="w-full bg-white text-black px-10 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#075e54] placeholder-gray-500"
+            placeholder="Search"
+            className="w-full bg-[#24303f] text-white pl-10 pr-10 py-2 rounded-lg border-none focus:outline-none focus:ring-0 placeholder-gray-400 h-9"
           />
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           {searchQuery && (
             <Button
               onClick={() => setSearchQuery('')}
@@ -958,7 +959,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       </div>
 
       {/* Contact List */}
-      <CardContent className="flex-1 overflow-y-auto bg-gray-900 p-6">
+      <CardContent className="flex-1 overflow-y-auto p-0">
         {loading ? (
           <ShimmerContactList />
         ) : error ? (
@@ -967,33 +968,27 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
             <Button
               onClick={() => loadContactsWithRetry()}
               variant="default"
-              className="bg-[#5DAEF6] rounded text-white hover:bg-[#064c44] mt-[3rem]"
+              className="bg-blue-600 rounded text-white hover:bg-blue-700 mt-[3rem]"
             >
               Retry
             </Button>
           </div>
         ) : !searchedContacts?.length ? (
-          <div className="flex flex-col items-center justify-center p-4 h-full min-h-[300px]">
+          <div className="flex flex-col items-center justify-center p-4 h-full text-center">
             {searchQuery ? (
-              <p className="text-gray-500">No contacts found matching "{searchQuery}"</p>
-            ) : syncProgress ? (
-              <p className="text-gray-500">Syncing contacts...</p>
+               <p className="text-gray-400">No chats found for "{searchQuery}"</p>
             ) : (
               <>
-                <img 
-                  src="https://miro.medium.com/v2/resize:fit:1100/format:webp/0*d94Rn5bObhShU7YV.gif" 
-                  alt="Waiting for contacts" 
-                  className="w-32 h-32 mb-4"
-                />
-                <p className="text-gray-500 text-center">
-                  Application syncs new contacts with new messages.<br />
-                  Keep track of the refresh button
+                <FiMessageSquare className="w-16 h-16 text-gray-500 mb-4" />
+                <h3 className="text-lg font-medium text-white">No chats yet</h3>
+                <p className="text-gray-400 text-sm mt-1 max-w-xs">
+                  It looks like you don't have any chats. New chats will appear here after you send or receive a message.
                 </p>
               </>
             )}
           </div>
         ) : (
-          <div className="contact-list divide-y divide-gray-200">
+          <div className="contact-list space-y-1 p-2">
             {searchedContacts.map(contact => (
               <ContactItem
                 key={contact.id}
