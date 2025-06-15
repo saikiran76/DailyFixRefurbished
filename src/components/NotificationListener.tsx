@@ -1,6 +1,6 @@
 
 import { useEffect } from "react";
-import { useClient, JsonObject } from "@liveblocks/react";
+import { useClient, type JsonObject } from "@liveblocks/react";
 import { toast } from "react-hot-toast";
 
 interface WhatsAppMessageEvent extends JsonObject {

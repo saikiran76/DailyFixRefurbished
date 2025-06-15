@@ -15,7 +15,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
@@ -178,6 +177,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
             <Button variant="ghost" size="icon" onClick={handleRefreshClick} disabled={isRefreshing}>
               <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
             </Button>
+            {/* 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -201,6 +201,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            */}
           </div>
         </div>
         {isAddingContact && (
