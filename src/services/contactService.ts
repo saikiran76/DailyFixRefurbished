@@ -310,38 +310,6 @@ class ContactService {
   }
 
   /**
-   * Adds a new contact
-   * @param {string} userId
-   * @param {string} contactId - The contact ID to add (e.g. @username for telegram)
-   * @param {string} platform
-   * @returns {Promise<Object>} The new contact
-   */
-  async addContact(userId: string, contactId: string, platform: string = 'telegram') {
-    if (!userId || !contactId || !platform) {
-      throw new AppError(ErrorTypes.VALIDATION, 'User ID, Contact ID, and platform are required');
-    }
-
-    try {
-      logger.info(`[ContactService] Adding contact ${contactId} for platform ${platform}`);
-      const apiPrefix = `/api/v1/${platform}`;
-      const response = await api.post(`${apiPrefix}/contacts`, { contactId });
-
-      if (!response?.data?.data) {
-        throw new AppError(ErrorTypes.API, 'Invalid response from add contact API');
-      }
-
-      // Clear cache to force fresh data on next fetch
-      this.clearCache(userId);
-
-      logger.info('[ContactService] Successfully added contact:', contactId);
-      return response.data.data;
-    } catch (error) {
-      logger.error('[ContactService] Error adding contact:', error);
-      throw handleError(error, 'Failed to add contact');
-    }
-  }
-
-  /**
    * Clears the contact cache for a specific user or all users
    * @param {string} [userId] - Optional user ID to clear specific cache
    */
