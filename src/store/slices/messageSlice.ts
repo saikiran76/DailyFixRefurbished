@@ -4,7 +4,10 @@ import { messageService } from '../../services/messageService';
 import logger from '../../utils/logger';
 
 // Async thunks
-export const fetchMessages = createAsyncThunk(
+export const fetchMessages = createAsyncThunk<
+  { messages: any[]; hasMore: boolean },
+  { contactId: string; page?: number; limit?: number; platform?: string }
+>(
   'messages/fetchAll',
   async ({ contactId, page = 0, limit = 20, platform = 'whatsapp' }, { rejectWithValue }) => {
     try {
@@ -14,12 +17,15 @@ export const fetchMessages = createAsyncThunk(
       return result;
     } catch (error) {
       logger.error(`[Messages] Failed to fetch ${platform} messages:`, error);
-      return rejectWithValue(error.message);
+      return rejectWithValue((error as Error).message);
     }
   }
 );
 
-export const sendMessage = createAsyncThunk(
+export const sendMessage = createAsyncThunk<
+  any,
+  { contactId: string; message: { content: string }; platform?: string }
+>(
   'messages/send',
   async ({ contactId, message, platform = 'whatsapp' }, { rejectWithValue }) => {
     try {
@@ -27,12 +33,15 @@ export const sendMessage = createAsyncThunk(
       return result;
     } catch (error) {
       logger.error(`[Messages] Failed to send ${platform} message:`, error);
-      return rejectWithValue(error.message);
+      return rejectWithValue((error as Error).message);
     }
   }
 );
 
-export const markMessagesAsRead = createAsyncThunk(
+export const markMessagesAsRead = createAsyncThunk<
+  { messageIds: string[] },
+  { contactId: string; messageIds: string[]; platform?: string }
+>(
   'messages/markAsRead',
   async ({ contactId, messageIds, platform = 'whatsapp' }, { rejectWithValue }) => {
     try {
@@ -40,12 +49,15 @@ export const markMessagesAsRead = createAsyncThunk(
       return { messageIds };
     } catch (error) {
       logger.error(`[Messages] Failed to mark ${platform} messages as read:`, error);
-      return rejectWithValue(error.message);
+      return rejectWithValue((error as Error).message);
     }
   }
 );
 
-export const fetchNewMessages = createAsyncThunk(
+export const fetchNewMessages = createAsyncThunk<
+  { messages: any[] },
+  { contactId: string; lastEventId: string; platform?: string }
+>(
   'messages/fetchNew',
   async ({ contactId, lastEventId, platform = 'whatsapp' }, { rejectWithValue }) => {
     try {
@@ -55,12 +67,15 @@ export const fetchNewMessages = createAsyncThunk(
       return result;
     } catch (error) {
       logger.error(`[Messages] Failed to fetch new ${platform} messages:`, error);
-      return rejectWithValue(error.message);
+      return rejectWithValue((error as Error).message);
     }
   }
 );
 
-export const refreshMessages = createAsyncThunk(
+export const refreshMessages = createAsyncThunk<
+  any,
+  { contactId: string; platform?: string }
+>(
   'messages/refresh',
   async ({ contactId, platform = 'whatsapp' }, { rejectWithValue }) => {
     try {
@@ -70,7 +85,7 @@ export const refreshMessages = createAsyncThunk(
       return { contactId, ...result };
     } catch (error) {
       logger.error(`[Messages] Failed to refresh ${platform} messages:`, error);
-      return rejectWithValue(error.message);
+      return rejectWithValue((error as Error).message);
     }
   }
 );

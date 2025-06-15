@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
@@ -32,6 +31,7 @@ const SORT_OPTIONS = {
 const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const dispatch = useDispatch<AppDispatch>();
   const contactState = useSelector((state: RootState) => state.contacts);
+  const { user } = useSelector((state: RootState) => state.auth);
   const { 
     items: contacts = [], 
     loading, 
@@ -64,18 +64,18 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   }, [isSyncing]);
 
   useEffect(() => {
-    if (!hasInitialSynced) {
+    if (!hasInitialSynced && user?.id) {
       logger.info("[TelegramContactList] Initial sync not detected. Fetching contacts.");
-      dispatch(fetchContacts({ platform: 'telegram' }));
+      dispatch(fetchContacts({ userId: user.id, platform: 'telegram' }));
     }
-  }, [dispatch, hasInitialSynced]);
+  }, [dispatch, hasInitialSynced, user?.id]);
 
   const handleRefreshClick = async () => {
-    if (isRefreshing) return;
+    if (isRefreshing || !user?.id) return;
     logger.info('[TelegramContactList] Manual refresh triggered.');
     setIsRefreshing(true);
     try {
-      await dispatch(freshSyncContacts({ platform: 'telegram' })).unwrap();
+      await dispatch(freshSyncContacts({ userId: user.id, platform: 'telegram' })).unwrap();
       toast.success('Contacts refreshed successfully!');
     } catch (e: any) {
       logger.error('[TelegramContactList] Refresh failed', e);
@@ -94,8 +94,12 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       toast.error("Telegram user ID must start with @");
       return;
     }
+    if (!user?.id) {
+      toast.error("User not found");
+      return;
+    }
     try {
-      await dispatch(addContact({ platform: 'telegram', contactId: newContactId })).unwrap();
+      await dispatch(addContact({ platform: 'telegram', contactId: newContactId, userId: user.id })).unwrap();
       toast.success(`Contact ${newContactId} added!`);
       setNewContactId('');
       setIsAddingContact(false);
@@ -193,7 +197,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
                 </DropdownMenuSub>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
-                  Order: {sortOrder === 'asc' ? <ArrowUpWideNarrow className="ml-2 h-4 w-4" /> : <ArrowDownWideNarrow className="ml-2 h-4 w-4" />}
+                  <span>Order: {sortOrder === 'asc' ? <ArrowUpWideNarrow className="ml-2 h-4 w-4 inline" /> : <ArrowDownWideNarrow className="ml-2 h-4 w-4 inline" />}</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -207,6 +211,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
               value={newContactId}
               onChange={(e) => setNewContactId(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleAddContact()}
+              className="h-9"
             />
             <Button onClick={handleAddContact}>Add</Button>
           </div>

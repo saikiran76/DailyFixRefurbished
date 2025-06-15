@@ -12,21 +12,22 @@ import useWhatsAppNotifications from '@/hooks/useWhatsAppNotifications';
 
 const WhatsappContactList = ({ onContactSelect, selectedContactId }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { contacts, loading, hasInitialSynced } = useSelector((state: RootState) => state.contacts);
+  const { items: contacts, loading, initialLoadComplete: hasInitialSynced } = useSelector((state: RootState) => state.contacts);
+  const { user } = useSelector((state: RootState) => state.auth);
   const [searchTerm, setSearchTerm] = useState('');
   
   const { unreadNotifications, markAsRead } = useWhatsAppNotifications();
 
   useEffect(() => {
-    if (!hasInitialSynced) {
-      dispatch(fetchContacts('whatsapp'));
+    if (!hasInitialSynced && user?.id) {
+      dispatch(fetchContacts({ userId: user.id, platform: 'whatsapp' }));
     }
-  }, [dispatch, hasInitialSynced]);
+  }, [dispatch, hasInitialSynced, user?.id]);
 
   const notificationsByContact = useMemo(() => {
     const grouped = {};
     unreadNotifications.forEach(notification => {
-      const contactId = notification.subjectId;
+      const contactId = notification.roomId;
       if (!grouped[contactId]) {
         grouped[contactId] = 0;
       }
@@ -37,7 +38,7 @@ const WhatsappContactList = ({ onContactSelect, selectedContactId }) => {
   
   const handleContactSelect = useCallback((contact) => {
     onContactSelect(contact);
-    const contactNotifications = unreadNotifications.filter(n => n.subjectId === contact.id);
+    const contactNotifications = unreadNotifications.filter(n => n.roomId === contact.id);
     contactNotifications.forEach(notification => {
       markAsRead(notification.id);
     });

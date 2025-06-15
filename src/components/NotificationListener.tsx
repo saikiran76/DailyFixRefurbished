@@ -1,7 +1,15 @@
 
 import { useEffect } from "react";
-import { useClient } from "@liveblocks/react";
+import { useClient, JsonObject } from "@liveblocks/react";
 import { toast } from "react-hot-toast";
+
+interface WhatsAppMessageEvent extends JsonObject {
+  kind: '$whatsappMessage';
+  activityData: {
+    sender: string;
+    message: string;
+  }
+}
 
 function NotificationListener() {
   const client = useClient();
@@ -14,11 +22,12 @@ function NotificationListener() {
     // Enter the notifications room to listen for broadcast events
     const { room, leave } = client.enterRoom("notifications");
     
-    const unsubscribe = room.events.broadcast.subscribe(({ event }) => {
+    const unsubscribe = room.events.customEvent.subscribe(({ event }) => {
       console.log("New broadcast event received:", event);
       
-      if (event && event.kind === '$whatsappMessage' && event.activityData) {
-        toast.success(`New message from ${event.activityData.sender}: ${event.activityData.message}`);
+      const customEvent = event as WhatsAppMessageEvent;
+      if (customEvent && customEvent.kind === '$whatsappMessage' && customEvent.activityData) {
+        toast.success(`New message from ${customEvent.activityData.sender}: ${customEvent.activityData.message}`);
       }
     });
     

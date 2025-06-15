@@ -1,5 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import type { PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import contactService from '@/services/contactService';
 import logger from '@/utils/logger';
 import { isWhatsAppConnected } from '@/utils/connectionStorage';
@@ -148,6 +147,22 @@ export const updateContactPriority = createAsyncThunk(
       // Return the priority update
       return { contactId, priority, timestamp: Date.now() };
     } catch (error: any) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const addContact = createAsyncThunk(
+  'contacts/add',
+  async ({ platform = 'telegram', contactId, userId }: { platform: string, contactId: string, userId: string }, { rejectWithValue }) => {
+    try {
+      logger.info(`[Contacts] Adding contact ${contactId} for platform ${platform}`);
+      // This assumes contactService has an addContact method.
+      // If not, this will need to be implemented in the service.
+      const newContact = await contactService.addContact(userId, contactId, platform);
+      return newContact;
+    } catch (error: any) {
+      logger.error('[Contacts] Failed to add contact:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -334,6 +349,29 @@ const contactSlice = createSlice({
           lastUpdated: timestamp
         };
       })
+      .addCase(addContact.fulfilled, (state, action: PayloadAction<any>) => {
+        const newContact = action.payload;
+        if (!newContact) return;
+        
+        const existingContactIndex = state.items.findIndex(contact => contact.id === newContact.id);
+  
+        if (existingContactIndex === -1) {
+          state.items.push({
+            ...newContact,
+            metadata: {
+              ...(newContact.metadata || {}),
+              membership: newContact.metadata?.membership || 'join'
+            }
+          });
+          logger.info('[ContactSlice] New contact added:', {
+            contactId: newContact.id,
+            displayName: newContact.display_name
+          });
+        }
+      })
+      .addCase(addContact.rejected, (state, action) => {
+        state.error = action.payload as string;
+      })
       // Handle rehydration
       .addCase('persist/REHYDRATE', (state, action) => {
         if ((action as any).payload?.contacts) {
@@ -370,7 +408,6 @@ export const {
   updateContactMembership,
   setPriority,
   cleanupPriorities,
-  addContact,
   hideContact,
   updateContactDisplayName,
   reset
