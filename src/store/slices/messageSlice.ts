@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
+import { v4 as uuidv4 } from 'uuid';
 import { messageService } from '../../services/messageService';
 import logger from '../../utils/logger';
 
@@ -101,9 +102,6 @@ const messageSlice = createSlice({
     },
     clearAll: (state) => {
       return initialState;
-    },
-    addToMessageQueue: (state, action) => {
-      state.messageQueue.push(action.payload);
     },
     removeFromMessageQueue: (state, action) => {
       state.messageQueue = state.messageQueue.filter(msg => msg.id !== action.payload);

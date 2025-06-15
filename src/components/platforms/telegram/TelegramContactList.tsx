@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
+import { Virtuoso } from 'react-virtuoso';
 import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
 import logger from '@/utils/logger';
 import { SYNC_STATES } from '@/utils/syncUtils';
@@ -987,16 +988,20 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
             )}
           </div>
         ) : (
-          <div className="contact-list space-y-1 p-2">
-            {searchedContacts.map(contact => (
-              <ContactItem
-                key={contact.id}
-                contact={contact}
-                isSelected={contact.id === selectedContactId}
-                onClick={() => handleContactSelect(contact)}
-              />
-            ))}
-          </div>
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={searchedContacts}
+            className="p-2"
+            itemContent={(index, contact) => (
+              <div style={{ paddingBottom: '4px' }}>
+                <ContactItem
+                  contact={contact}
+                  isSelected={contact.id === selectedContactId}
+                  onClick={() => handleContactSelect(contact)}
+                />
+              </div>
+            )}
+          />
         )}
         
         {/* Overlay that prevents interaction until refreshed */}
