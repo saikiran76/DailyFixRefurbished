@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { FaWhatsapp, FaTelegram } from 'react-icons/fa';
 import platformManager from '@/services/PlatformManager';
@@ -460,7 +461,7 @@ const PlatformsInfo: React.FC<PlatformsInfoProps> = ({ onStartSync, isCheckingSt
               variant="ghost" 
               size="icon" 
               onClick={refreshAllPlatforms}
-              disabled={isRefreshing || networkStatus === 'offline' || serverStatus === 'down' as 'up' | 'down' | 'unknown'}
+              disabled={isRefreshing || networkStatus === 'offline' || serverStatus === 'down'}
               className="h-8 w-8"
             >
               <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -483,7 +484,7 @@ const PlatformsInfo: React.FC<PlatformsInfoProps> = ({ onStartSync, isCheckingSt
                   onClick={() => checkPlatformStatus(platform)}
                   size="sm"
                   className="bg-primary hover:bg-primary/90"
-                  disabled={isCheckingStatus || verifyingPlatform !== null || serverStatus === 'down' as string || isRefreshing}
+                  disabled={isCheckingStatus || verifyingPlatform !== null || serverStatus === 'down' || isRefreshing}
                 >
                   {verifyingPlatform === platform ? (
                     <>
@@ -556,4 +557,4 @@ const PlatformsInfo: React.FC<PlatformsInfoProps> = ({ onStartSync, isCheckingSt
   );
 };
 
-export default PlatformsInfo; 
+export default PlatformsInfo;

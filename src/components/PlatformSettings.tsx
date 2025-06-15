@@ -338,7 +338,7 @@ const PlatformSettings = () => {
       {/* @ts-ignore */}
       <Tabs defaultValue="accounts" className="w-full">
         {/* @ts-ignore */}
-        <TabsList className="grid grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-3 mb-6 bg-gray-800 text-gray-400">
           {/* @ts-ignore */}
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           {/* @ts-ignore */}

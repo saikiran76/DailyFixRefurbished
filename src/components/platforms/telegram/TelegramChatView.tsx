@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from '@/store/store';
 import { toast } from 'react-hot-toast';
 import { Virtuoso } from 'react-virtuoso';
 import {
@@ -22,13 +24,13 @@ import logger from '@/utils/logger';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const TelegramChatView = ({ selectedContact, currentUser }) => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const [newMessage, setNewMessage] = useState('');
-  const messages = useSelector(state => selectMessages(state, selectedContact?.id));
+  const messages = useSelector((state: RootState) => selectMessages(state, selectedContact?.id));
   const loading = useSelector(selectMessageLoading);
   const hasMoreMessages = useSelector(selectHasMoreMessages);
-  const lastEventId = useSelector(state => selectLastKnownMessageId(state, selectedContact?.id));
-  const currentPage = useSelector(state => selectCurrentPage(state));
+  const lastEventId = useSelector((state: RootState) => selectLastKnownMessageId(state, selectedContact?.id));
+  const currentPage = useSelector((state: RootState) => selectCurrentPage(state));
   const virtuosoRef = useRef(null);
 
   useEffect(() => {
@@ -53,7 +55,7 @@ const TelegramChatView = ({ selectedContact, currentUser }) => {
     const fetchNew = async () => {
       if (selectedContact?.id && lastEventId) {
         try {
-          await dispatch(fetchNewMessages({ contactId: selectedContact.id, lastEventId, platform: 'telegram' }));
+          await dispatch(fetchNewMessages({ contactId: selectedContact.id, lastEventId, platform: 'telegram' })).unwrap();
         } catch (error) {
           logger.error('Failed to fetch new messages:', error);
         }
@@ -73,7 +75,7 @@ const TelegramChatView = ({ selectedContact, currentUser }) => {
   const handleRefresh = async () => {
     if (selectedContact?.id) {
       toast.promise(
-        dispatch(refreshMessages({ contactId: selectedContact.id, platform: 'telegram' })),
+        dispatch(refreshMessages({ contactId: selectedContact.id, platform: 'telegram' })).unwrap(),
         {
           loading: 'Refreshing messages...',
           success: 'Messages refreshed!',
@@ -158,4 +160,5 @@ const TelegramChatView = ({ selectedContact, currentUser }) => {
   );
 };
 
+export const ChatViewWithErrorBoundary = TelegramChatView;
 export default TelegramChatView;

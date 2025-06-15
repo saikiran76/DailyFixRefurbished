@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -12,9 +13,8 @@ import { useStore } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
 import { refreshTokenIfNeeded } from '@/utils/authSecurityHelpers';
 import { SupabaseClient } from '@supabase/supabase-js';
-// import LavaLamp from '@/components/ui/Loader/LavaLamp';
 import CentralLoader from '@/components/ui/CentralLoader';
-// import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 /**
  * SessionManager component
  * Handles authentication state management and session persistence
@@ -425,7 +425,8 @@ const SessionManager = ({ children }: SessionManagerProps) => {
     globalInitialized = true;
     
     // Navigate based on auth state
-    if (session) {
+    const currentSession = store.getState().auth.session;
+    if (currentSession) {
       navigate('/onboarding');
     } else {
       navigate('/login');
@@ -434,16 +435,25 @@ const SessionManager = ({ children }: SessionManagerProps) => {
 
   // Render children once validation is complete
   return isValidating ? (
-    <CentralLoader
-      message={getLoaderMessage().main}
-      subMessage={getLoaderMessage().sub}
-      showButton={isValidating && !initialized && emergencyTimeoutRef.current !== null}
-      buttonText="Continue Manually"
-      onButtonClick={handleManualContinue}
-    />
+    <div className="relative w-screen h-screen">
+      <CentralLoader
+        message={getLoaderMessage().main}
+        subMessage={getLoaderMessage().sub}
+      />
+      {isValidating && !initialized && emergencyTimeoutRef.current !== null && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2">
+          <Button
+            variant="outline"
+            onClick={handleManualContinue}
+          >
+            Continue Manually
+          </Button>
+        </div>
+      )}
+    </div>
   ) : (
     <>{children}</>
   );
 };
 
-export default SessionManager; 
+export default SessionManager;

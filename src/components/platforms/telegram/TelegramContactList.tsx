@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from '@/store/store';
 import { toast } from 'react-hot-toast';
 import { Virtuoso } from 'react-virtuoso';
 import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
@@ -27,10 +28,10 @@ const SORT_OPTIONS = {
   ALPHABETICAL: 'Alphabetical',
 };
 
-const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh, isRefreshing: isPropRefreshing, onHide, onUpdateDisplayName, currentUserId }) => {
-  const dispatch = useDispatch();
+const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = () => {}, isRefreshing: isPropRefreshing = false, onHide = () => {}, onUpdateDisplayName = () => {}, currentUserId = null }) => {
+  const dispatch = useDispatch<AppDispatch>();
   const { contacts, loading, syncState, syncError, hasInitialSynced } = useSelector(
-    (state) => state.contacts
+    (state: RootState) => state.contacts
   );
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,7 +72,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh, is
     try {
       await dispatch(freshSyncContacts('telegram')).unwrap();
       toast.success('Contacts refreshed successfully!');
-    } catch (e) {
+    } catch (e: any) {
       logger.error('[TelegramContactList] Refresh failed', e);
       toast.error(e.message || 'Failed to refresh contacts.');
     } finally {
@@ -93,7 +94,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh, is
       toast.success(`Contact ${newContactId} added!`);
       setNewContactId('');
       setIsAddingContact(false);
-    } catch (error) {
+    } catch (error: any) {
       toast.error(error.message || `Failed to add contact ${newContactId}.`);
     }
   };
@@ -107,7 +108,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh, is
       .filter(c => c.platform === 'telegram' && !c.hidden)
       .map(c => ({
           ...c,
-          priority: selectContactPriority({ contacts: { items: contacts } }, c.id)
+          priority: selectContactPriority({ contacts: { items: contacts } } as RootState, c.id)
       }));
 
     switch (activeSort) {
