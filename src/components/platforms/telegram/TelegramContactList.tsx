@@ -16,6 +16,7 @@ import useAvatarCache from '@/hooks/useAvatarCache';
 import '@/components/styles/ShakeAnimation.css';
 import platformManager from '@/services/PlatformManager';
 import ErrorMessage from '@/components/ui/ErrorMessage';
+import { Virtuoso } from 'react-virtuoso';
 
 // Import shadcn UI components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -993,16 +994,18 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
             )}
           </div>
         ) : (
-          <div className="contact-list divide-y divide-gray-200">
-            {searchedContacts.map(contact => (
+          <Virtuoso
+            style={{ height: '100%' }}
+            data={searchedContacts}
+            itemContent={(index, contact) => (
               <ContactItem
                 key={contact.id}
                 contact={contact}
                 isSelected={contact.id === selectedContactId}
                 onClick={() => handleContactSelect(contact)}
               />
-            ))}
-          </div>
+            )}
+          />
         )}
         
         {/* Overlay that prevents interaction until refreshed */}

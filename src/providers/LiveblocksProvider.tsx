@@ -1,4 +1,3 @@
-
 import React, { ReactNode } from "react";
 import { LiveblocksProvider, ClientSideSuspense } from "@liveblocks/react";
 import { getSupabaseClient } from "@/utils/supabase";
@@ -27,9 +26,8 @@ export function LiveblocksProviderWrapper({ children }: { children: ReactNode })
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          // Based on the backend code, we send 'access' as a string.
-          // We'll send a full valid permission to be safe.
-          body: JSON.stringify({ room, access: "room:write" }),
+          // Send permissions as an array of strings.
+          body: JSON.stringify({ room, access: ["room:read", "room:write"] }),
         });
 
         if (!response.ok) {
