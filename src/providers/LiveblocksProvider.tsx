@@ -1,7 +1,6 @@
 
 import React, { ReactNode } from "react";
 import { LiveblocksProvider, ClientSideSuspense } from "@liveblocks/react";
-import { LiveblocksUIConfig } from "@liveblocks/react-ui";
 import { getSupabaseClient } from "@/utils/supabase";
 
 export function LiveblocksProviderWrapper({ children }: { children: ReactNode }) {
@@ -28,11 +27,15 @@ export function LiveblocksProviderWrapper({ children }: { children: ReactNode })
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ room }),
+          // Based on the backend code, we send 'access' as a string.
+          // We'll send a full valid permission to be safe.
+          body: JSON.stringify({ room, access: "room:write" }),
         });
 
         if (!response.ok) {
-          throw new Error("Failed to authenticate with Liveblocks");
+          const errorText = await response.text();
+          console.error("Liveblocks auth failed:", response.status, errorText);
+          throw new Error(`Failed to authenticate with Liveblocks: ${errorText}`);
         }
 
         return await response.json();
