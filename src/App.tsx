@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
@@ -13,6 +14,8 @@ import SessionExpirationHandler from '@/components/SessionExpirationHandler';
 import DebugPanel from '@/components/DebugPanel';
 import { useLogger } from '@/hooks/useLogger';
 import { initializeAuthSecurity } from '@/utils/authSecurityHelpers';
+import { LiveblocksProviderWrapper } from '@/providers/LiveblocksProvider';
+import NotificationListener from '@/components/NotificationListener';
 
 // Global initialization flag to prevent multiple security initializations
 // across hot reloads and strict mode
@@ -205,23 +208,27 @@ function App() {
     <StoreProvider>
       <ThemeProvider>
         <BrowserRouter>
-          {/* Session expired modal */}
-          <SessionExpiredModal
-            isOpen={showSessionExpiredModal}
-            onClose={handleModalClose}
-          />
+          <LiveblocksProviderWrapper>
+            {/* Session expired modal */}
+            <SessionExpiredModal
+              isOpen={showSessionExpiredModal}
+              onClose={handleModalClose}
+            />
 
-          <Toaster position="top-center" closeButton />
-          
-          <SessionManager>
-            <SessionExpirationHandler />
-            <AppRoutes />
-            {/* Debug panel only in development mode */}
-            {/* {process.env.NODE_ENV === 'development' && <DebugPanel />} */}
-          </SessionManager>
-          
-          {/* Emergency navigation buttons - only shown when needed */}
-          {renderEmergencyNavigation()}
+            <Toaster position="top-center" closeButton />
+            
+            <NotificationListener />
+
+            <SessionManager>
+              <SessionExpirationHandler />
+              <AppRoutes />
+              {/* Debug panel only in development mode */}
+              {/* {process.env.NODE_ENV === 'development' && <DebugPanel />} */}
+            </SessionManager>
+            
+            {/* Emergency navigation buttons - only shown when needed */}
+            {renderEmergencyNavigation()}
+          </LiveblocksProviderWrapper>
         </BrowserRouter>
       </ThemeProvider>
     </StoreProvider>

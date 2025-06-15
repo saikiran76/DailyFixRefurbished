@@ -1,16 +1,17 @@
+
 import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
 import { toast } from 'react-hot-toast';
 import { Virtuoso } from 'react-virtuoso';
-import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
+import { fetchContacts, selectContactPriority, freshSyncContacts, addContact } from '@/store/slices/contactSlice';
 import logger from '@/utils/logger';
 import { SYNC_STATES } from '@/utils/syncUtils';
 import ContactItem from './ContactItem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, SlidersHorizontal, ArrowDownWideNarrow, ArrowUpWideNarrow, UserPlus, RefreshCw, Star, Trash2 } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowDownWideNarrow, ArrowUpWideNarrow, UserPlus, RefreshCw } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,11 +29,16 @@ const SORT_OPTIONS = {
   ALPHABETICAL: 'Alphabetical',
 };
 
-const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = () => {}, isRefreshing: isPropRefreshing = false, onHide = () => {}, onUpdateDisplayName = () => {}, currentUserId = null }) => {
+const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const dispatch = useDispatch<AppDispatch>();
-  const { contacts, loading, syncState, syncError, hasInitialSynced } = useSelector(
-    (state: RootState) => state.contacts
-  );
+  const contactState = useSelector((state: RootState) => state.contacts);
+  const { 
+    items: contacts = [], 
+    loading, 
+    syncStatus,
+    error: syncError, 
+    initialLoadComplete: hasInitialSynced 
+  } = contactState || {};
 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
@@ -41,7 +47,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
   const [newContactId, setNewContactId] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  const hasRefreshed = useRef(false);
+  const isSyncing = syncStatus?.inProgress;
 
   useEffect(() => {
     if (syncError) {
@@ -50,18 +56,17 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
   }, [syncError]);
 
   useEffect(() => {
-    const isSyncing = syncState === SYNC_STATES.SYNCING;
-    if (isPropRefreshing || isSyncing) {
+    if (isSyncing) {
       setIsRefreshing(true);
     } else {
       setIsRefreshing(false);
     }
-  }, [isPropRefreshing, syncState]);
+  }, [isSyncing]);
 
   useEffect(() => {
     if (!hasInitialSynced) {
       logger.info("[TelegramContactList] Initial sync not detected. Fetching contacts.");
-      dispatch(fetchContacts('telegram'));
+      dispatch(fetchContacts({ platform: 'telegram' }));
     }
   }, [dispatch, hasInitialSynced]);
 
@@ -70,7 +75,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
     logger.info('[TelegramContactList] Manual refresh triggered.');
     setIsRefreshing(true);
     try {
-      await dispatch(freshSyncContacts('telegram')).unwrap();
+      await dispatch(freshSyncContacts({ platform: 'telegram' })).unwrap();
       toast.success('Contacts refreshed successfully!');
     } catch (e: any) {
       logger.error('[TelegramContactList] Refresh failed', e);
@@ -104,11 +109,11 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
   }, [onContactSelect]);
 
   const sortedContacts = useMemo(() => {
-    let filteredContacts = contacts
+    let filteredContacts = [...contacts]
       .filter(c => c.platform === 'telegram' && !c.hidden)
       .map(c => ({
           ...c,
-          priority: selectContactPriority({ contacts: { items: contacts } } as RootState, c.id)
+          priority: selectContactPriority({ contacts: contactState } as RootState, c.id)
       }));
 
     switch (activeSort) {
@@ -128,7 +133,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
       filteredContacts.reverse();
     }
     return filteredContacts;
-  }, [contacts, activeSort, sortOrder]);
+  }, [contacts, activeSort, sortOrder, contactState]);
 
   const searchedContacts = useMemo(() => {
     if (!searchTerm) {
@@ -209,7 +214,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId, onRefresh = (
       </div>
 
       <div className="flex-grow overflow-y-auto">
-        {syncState === SYNC_STATES.SYNCING && (
+        {isSyncing && (
           <div className="p-4 text-center text-sm text-gray-500">
             <p>Syncing new contacts...</p>
             <p className="text-xs">This may take a moment.</p>

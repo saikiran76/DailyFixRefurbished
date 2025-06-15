@@ -1,29 +1,32 @@
 
 import { useEffect } from "react";
-import { useRoom } from "@liveblocks/react";
+import { useClient } from "@liveblocks/react";
 import { toast } from "react-hot-toast";
 
 function NotificationListener() {
-  // Replace with your notifications room ID
-  const room = useRoom("notifications");
+  const client = useClient();
   
   useEffect(() => {
-    if (!room) return;
+    if (!client) {
+      return;
+    }
     
-    // Set up a broadcast event listener
-    const unsubscribe = room.events.notification.subscribe((data) => {
-      // Handle new notification
-      console.log("New notification received:", data);
+    // Enter the notifications room to listen for broadcast events
+    const { room, leave } = client.enterRoom("notifications");
+    
+    const unsubscribe = room.events.broadcast.subscribe(({ event }) => {
+      console.log("New broadcast event received:", event);
       
-      if (data.kind === '$whatsappMessage' && data.activityData) {
-        toast.success(`New message from ${data.activityData.sender}: ${data.activityData.message}`);
+      if (event && event.kind === '$whatsappMessage' && event.activityData) {
+        toast.success(`New message from ${event.activityData.sender}: ${event.activityData.message}`);
       }
     });
     
     return () => {
       unsubscribe();
+      leave();
     };
-  }, [room]);
+  }, [client]);
   
   return null; // This component doesn't render anything
 }
