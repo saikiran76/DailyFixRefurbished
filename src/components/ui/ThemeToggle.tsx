@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { useTheme } from '@/providers/ThemeProvider';
@@ -15,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@/components/ui/tooltip';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ThemeToggleProps {
   variant?: "default" | "outline" | "secondary";
@@ -23,44 +25,38 @@ interface ThemeToggleProps {
 
 const ThemeToggle = ({ variant = "outline", showTooltip = true }: ThemeToggleProps) => {
   const { theme, setTheme } = useTheme();
+  const isMobile = useIsMobile();
 
   const renderThemeIcon = () => {
     switch (theme) {
       case 'dark':
-        return <Moon className="h-[1.2rem] w-[1.2rem]" />;
+        return <Moon className="h-4 w-4" />;
       case 'light':
-        return <Sun className="h-[1.2rem] w-[1.2rem]" />;
+        return <Sun className="h-4 w-4" />;
       default:
-        return <Monitor className="h-[1.2rem] w-[1.2rem]" />;
+        return <Monitor className="h-4 w-4" />;
     }
   };
 
-  // Determine button classes based on variant
-  let buttonClasses = "";
-  switch (variant) {
-    case "secondary":
-      buttonClasses = "bg-secondary text-secondary-foreground hover:bg-secondary/80";
-      break;
-    case "outline":
-      buttonClasses = "border border-input bg-background hover:bg-accent hover:text-accent-foreground";
-      break;
-    default:
-      buttonClasses = "";
-  }
+  // Updated button classes for theme consistency
+  const buttonClasses = `flex items-center ${isMobile ? 'justify-start w-full gap-2 px-3' : 'justify-center'} h-9 ${isMobile ? 'w-full' : 'w-9'} rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${isMobile ? '' : 'mx-auto'} border-0 bg-transparent`;
 
   const menuItem = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="icon" 
+        <button 
           className={buttonClasses}
           aria-label="Toggle theme"
         >
           {renderThemeIcon()}
-        </Button>
+          {isMobile && <span className="text-sm">Change theme</span>}
+        </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8}>
+      <DropdownMenuContent 
+        align="end" 
+        sideOffset={8}
+        className="bg-popover border-border z-50"
+      >
         <DropdownMenuItem onSelect={() => setTheme("light")}>
           <Sun className="mr-2 h-4 w-4" />
           <span>Light</span>
@@ -77,14 +73,18 @@ const ThemeToggle = ({ variant = "outline", showTooltip = true }: ThemeTogglePro
     </DropdownMenu>
   );
 
-  if (showTooltip) {
+  if (showTooltip && !isMobile) {
     return (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             {menuItem}
           </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8}>
+          <TooltipContent 
+            side="right" 
+            sideOffset={8}
+            className="bg-popover border-border"
+          >
             Change theme
           </TooltipContent>
         </Tooltip>
@@ -95,4 +95,4 @@ const ThemeToggle = ({ variant = "outline", showTooltip = true }: ThemeTogglePro
   return menuItem;
 };
 
-export default ThemeToggle; 
+export default ThemeToggle;

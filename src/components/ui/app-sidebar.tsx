@@ -149,8 +149,8 @@ export function AppSidebar({
   const [helpOpen, setHelpOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  // Updated consistent button styling class with better alignment
-  const buttonClass = `flex items-center ${isMobile ? 'justify-start w-full gap-2 px-3' : 'justify-center'} h-9 ${isMobile ? 'w-full' : 'w-9'} rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${isMobile ? '' : 'mx-auto'}`;
+  // Updated consistent button styling class with theme-aware colors
+  const buttonClass = `flex items-center ${isMobile ? 'justify-start w-full gap-2 px-3' : 'justify-center'} h-9 ${isMobile ? 'w-full' : 'w-9'} rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors ${isMobile ? '' : 'mx-auto'} text-sidebar-foreground`;
 
   return (
     <Sidebar
@@ -160,7 +160,7 @@ export function AppSidebar({
     >
       <Sidebar
         collapsible="none"
-        className={`${isMobile ? '!w-auto max-w-[240px]' : '!w-[calc(var(--sidebar-width-icon)_+_2px)]'} border-r border-gray-700/50`}
+        className={`${isMobile ? '!w-auto max-w-[240px]' : '!w-[calc(var(--sidebar-width-icon)_+_2px)]'} border-r border-sidebar-border bg-sidebar`}
       >
         <SidebarHeader className="px-2 py-3">
           <div className={`flex ${isMobile ? 'w-full justify-start gap-2 px-1' : 'aspect-square size-9 justify-center'} items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground ${isMobile ? '' : 'mx-auto'}`}>
@@ -188,11 +188,11 @@ export function AppSidebar({
                       if (onSettingsSelected) onSettingsSelected();
                     }}
                   >
-                    <Settings className="h-4 w-4 text-gray-200" />
-                    {isMobile && <span className="text-sm text-gray-200">Settings</span>}
+                    <Settings className="h-4 w-4" />
+                    {isMobile && <span className="text-sm">Settings</span>}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent className="bg-white/60" side="right" sideOffset={8}>
+                <TooltipContent className="bg-popover border-border" side="right" sideOffset={8}>
                   Settings
                 </TooltipContent>
               </Tooltip>
@@ -201,7 +201,7 @@ export function AppSidebar({
         </SidebarContent>
         <SidebarFooter className="px-2 pb-4">
           <SidebarGroup className="px-0 mb-4">
-            <Dialog className="bg-neutral-700 chat-glowing-border" open={helpOpen} onOpenChange={setHelpOpen}>
+            <Dialog className="bg-popover border-border" open={helpOpen} onOpenChange={setHelpOpen}>
               <DialogTrigger asChild>
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
@@ -210,19 +210,19 @@ export function AppSidebar({
                         className={buttonClass}
                         onClick={() => setHelpOpen(true)}
                       >
-                        <HelpCircle className="h-4 w-4 text-gray-200" />
-                        {isMobile && <span className="text-sm text-gray-200">Help</span>}
+                        <HelpCircle className="h-4 w-4" />
+                        {isMobile && <span className="text-sm">Help</span>}
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent className="bg-white/60" side="right" sideOffset={8}>
+                    <TooltipContent className="bg-popover border-border" side="right"sideOffset={8}>
                       Help
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px] bg-neutral-800 ">
+              <DialogContent className="sm:max-w-[500px] bg-popover border-border">
                 <DialogHeader className="mb-4">
-                  <DialogTitle className="text-xl font-semibold">Help Center</DialogTitle>
+                  <DialogTitle className="text-xl font-semibold text-popover-foreground">Help Center</DialogTitle>
                 </DialogHeader>
                 <Help />
               </DialogContent>

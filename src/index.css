@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,6 +14,8 @@
     font-weight: 400;
     color-scheme: light dark;
     --radius: 0.625rem;
+    
+    /* Light theme colors */
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -36,7 +39,9 @@
     --chart-3: oklch(0.398 0.07 227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
+    
+    /* Light sidebar colors */
+    --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
     --sidebar-primary-foreground: 0 0% 98%;
@@ -44,7 +49,6 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-    --sidebar-background: 0 0% 98%;
 
     /* Glow effect variables */
     --px: 0;
@@ -73,10 +77,37 @@
     min-height: 100vh;
     width: 100%;
     height: 100%;
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
+  
+  /* Dark theme overrides */
   .dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-3: oklch(0.769 0.188 70.08);
+    --chart-4: oklch(0.627 0.265 303.9);
+    --chart-5: oklch(0.645 0.246 16.439);
+    
+    /* Dark sidebar colors */
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -109,13 +140,27 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: "IBM Plex Sans", sans-serif"Geist", sans-serif;
-  background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
 }
-button:hover {
+
+/* Theme-aware button styles */
+.light button {
+  background-color: #f1f1f1;
+  color: #213547;
+}
+.light button:hover {
   border-color: #646cff;
 }
+
+.dark button {
+  background-color: #1a1a1a;
+  color: #ffffff;
+}
+.dark button:hover {
+  border-color: #646cff;
+}
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -159,70 +204,6 @@ button:focus-visible {
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-  }
-  :root {
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-}
-
 /* Add these styles to ensure mobile compatibility */
 @media (max-width: 768px) {
   [data-sidebar="sidebar"] {
@@ -235,8 +216,16 @@ button:focus-visible {
   }
   
   body {
-    background-color: #1C1C1C;
     font-size: 0.9rem;
+  }
+  
+  /* Theme-aware mobile background */
+  .dark body {
+    background-color: #1C1C1C;
+  }
+  
+  .light body {
+    background-color: #ffffff;
   }
   
   /* Font size adjustments for mobile */
@@ -275,21 +264,34 @@ button:focus-visible {
     padding: 8px !important;
   }
   
-  /* Ensure popover content is visible */
+  /* Ensure popover content is visible with theme support */
   .popover-content {
     z-index: 9999 !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+  }
+  
+  .dark .popover-content {
     background-color: #1C1C1C !important;
     border: 1px solid #333 !important;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
+  }
+  
+  .light .popover-content {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e5e5 !important;
   }
 }
 
 /** onboarding page **/
 #left-column-onboarding {
-  background: -webkit-linear-gradient(to right, #3a6073, #3a7bd5);  /* Chrome 10-25, Safari 5.1-6 */
-  background: linear-gradient(to right, #3a6073, #1f2e43); /* W3C, IE 10+/ Edge, Firefox 16+, Chrome 26+, Opera 12+, Safari 7+ */
+  background: -webkit-linear-gradient(to right, #3a6073, #3a7bd5);
+  background: linear-gradient(to right, #3a6073, #1f2e43);
 }
-/*---break---*/
+
+/* Theme-aware onboarding background */
+.light #left-column-onboarding {
+  background: linear-gradient(to right, #e3f2fd, #bbdefb);
+}
+
 @layer base {
   * {
     @apply border-border;
@@ -299,16 +301,25 @@ button:focus-visible {
   }
 }
 
-/* Glow effect styles */
+/* Enhanced glow effect styles with theme support */
 @layer components {
   .chat-glow-base {
     position: relative;
-    border: var(--border-size) solid hsl(0 0% 20% / 0.3);
     border-radius: var(--glow-radius);
     background-attachment: fixed;
     background-size: calc(100% + (2 * var(--border-size))) calc(100% + (2 * var(--border-size)));
     background-position: 50% 50%;
     background-repeat: no-repeat;
+  }
+  
+  /* Light theme glow adjustments */
+  .light .chat-glow-base {
+    border: var(--border-size) solid hsl(0 0% 80% / 0.5);
+  }
+  
+  /* Dark theme glow */
+  .dark .chat-glow-base {
+    border: var(--border-size) solid hsl(0 0% 20% / 0.3);
   }
 
   .chat-glow-base::before,
@@ -387,4 +398,49 @@ button:focus-visible {
       transparent
     );
   }
+  
+  /* Light theme glow adjustments */
+  .light .chat-glowing-border,
+  .light .whatsapp-glowing-border {
+    --bg-spot-opacity: 0.15;
+    --border-spot-opacity: 0.4;
+    --border-light-opacity: 0.6;
+  }
+}
+
+/* Theme-aware scrollbar styles */
+.light ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.light ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.dark ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #2a2a2a;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #777;
 }
