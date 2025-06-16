@@ -65,8 +65,8 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, currentUser, classNa
       <div 
         className={`rounded-lg px-3 py-2 max-w-full ${
           isOutgoing 
-            ? 'bg-[#25D366] text-black mr-2 rounded-tr-none' 
-            : 'bg-white text-black ml-2 rounded-tl-none'
+            ? 'bg-chat-bubble-sent text-chat-bubble-sent-foreground mr-2 rounded-tr-none' 
+            : 'bg-chat-bubble text-chat-bubble-foreground ml-2 rounded-tl-none'
         }`}
         style={{
           maxWidth: '100%',
@@ -94,7 +94,7 @@ const MessageItem: React.FC<MessageItemProps> = ({ message, currentUser, classNa
           </div>
         )}
         
-        <div className="flex justify-end items-center mt-1 space-x-1 text-xs text-gray-500">
+        <div className="flex justify-end items-center mt-1 space-x-1 text-xs text-muted-foreground">
           <span>{formattedTime}</span>
           {isOutgoing && getStatusIcon()}
         </div>

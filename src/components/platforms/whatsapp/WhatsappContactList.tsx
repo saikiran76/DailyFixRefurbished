@@ -34,13 +34,13 @@ const INITIAL_RETRY_DELAY = 1000;
 
 // Update the ShimmerContactList component with more visible styling
 const ShimmerContactList = () => (
-  <div className="space-y-4 p-4 bg-[#ECE5DD] h-full min-h-[300px]">
+  <div className="space-y-4 p-4 bg-background h-full min-h-[300px]">
     {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-      <div key={i} className="flex items-center space-x-4 p-3 bg-white/60 rounded-md animate-pulse">
-        <Skeleton className="h-12 w-12 rounded-full bg-gray-300" />
+      <div key={i} className="flex items-center space-x-4 p-3 bg-card rounded-md animate-pulse">
+        <Skeleton className="h-12 w-12 rounded-full bg-muted" />
         <div className="space-y-2 flex-1">
-          <Skeleton className="h-5 w-3/4 bg-gray-300" />
-          <Skeleton className="h-4 w-1/2 bg-gray-300" />
+          <Skeleton className="h-5 w-3/4 bg-muted" />
+          <Skeleton className="h-4 w-1/2 bg-muted" />
         </div>
       </div>
     ))}
@@ -76,20 +76,20 @@ const PriorityBubble = ({ priority }) => {
 const PriorityBadge = ({ priority }) => {
   if (!priority) return null;
   
-  const getVariantAndClass = () => {
+  const getPriorityClasses = () => {
     switch (priority) {
-      case 'high':
-        return { variant: 'destructive', className: 'bg-red-500 text-white rounded' };
-      case 'medium':
-        return { variant: 'default', className: 'bg-yellow-500 bg-opacity-70 text-black rounded' };
-      case 'low':
-        return { variant: 'secondary', className: 'bg-green-600 text-white/80 rounded-lg' };
+      case 'High':
+        return 'bg-red-500/10 text-red-500 border-red-500/20';
+      case 'Medium':
+        return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+      case 'Low':
+        return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       default:
-        return { variant: 'outline', className: 'bg-gray-400 bg-opacity-70 text-white rounded' };
+        return 'bg-muted text-muted-foreground border-border';
     }
   };
   
-  const { variant, className } = getVariantAndClass();
+  const { variant, className } = getPriorityClasses();
   const label = priority.charAt(0).toUpperCase() + priority.slice(1);
   
   return (
@@ -113,7 +113,7 @@ const ContactAvatar = ({ contact, size = 40 }) => {
       {avatarUrl ? (
         <AvatarImage src={avatarUrl} alt={displayName} />
       ) : null}
-      <AvatarFallback className="bg-[#757575] text-white">
+      <AvatarFallback className="bg-secondary text-secondary-foreground">
         {initials}
       </AvatarFallback>
     </Avatar>
@@ -159,8 +159,8 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
 
   return (
     <div
-      className={`p-4 rounded-lg mb-2 bg-gray-800/50 hover:bg-gray-700/50 shadow-md cursor-pointer transition-colors border border-gray-700/50 hover:border-gray-600 relative ${
-        isSelected ? 'bg-gray-700/50' : ''
+      className={`p-4 rounded-lg mb-2 bg-card hover:bg-accent shadow-md cursor-pointer transition-colors border border-border hover:border-primary/20 relative ${
+        isSelected ? 'bg-accent' : ''
       }`}
       onClick={onClick}
       onMouseEnter={() => setShowTooltip(true)}
@@ -172,7 +172,7 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
                   onClick={handleEdit}
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                 >
                   <FiEdit3 size={20} />
                 </Button>
@@ -180,7 +180,7 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
                   onClick={handleDelete}
                   variant="ghost"
                   size="icon"
-            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
                 >
                   <BiSolidHide size={20} />
                 </Button>
@@ -196,22 +196,22 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
               onKeyDown={handleNameSubmit}
-              className="bg-gray-700 text-white px-2 py-1 rounded w-full border border-gray-600"
+              className="bg-input text-foreground px-2 py-1 rounded w-full border border-border"
               onClick={(e) => e.stopPropagation()}
               autoFocus
             />
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <div className="text-white font-medium truncate">{contact.display_name}</div>
+                <div className="text-foreground font-medium truncate">{contact.display_name}</div>
                 {priority && <PriorityBadge priority={priority} />}
               </div>
-              <div className="text-gray-400 text-sm truncate">{contact.last_message}</div>
+              <div className="text-muted-foreground text-sm truncate">{contact.last_message}</div>
             </>
           )}
         </div>
         {!isEditing && contact.last_message_at && (
-          <div className="text-gray-400 text-xs flex-shrink-0">
+          <div className="text-muted-foreground text-xs flex-shrink-0">
               {format(new Date(contact.last_message_at), 'HH:mm')}
         </div>
         )}
@@ -939,17 +939,17 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
   }, [loadContactsWithRetry]);
 
   return (
-    <Card className="flex flex-col h-full w-full border-none shadow-none rounded-lg bg-[#1C1C1C] opacity-90 relative">
-      <CardHeader className="p-4 bg-[#075E55] border-b border-gray-200">
+    <Card className="flex flex-col h-full w-full border-none shadow-none rounded-lg bg-background opacity-90 relative">
+      <CardHeader className="p-4 bg-header border-b border-border">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-white font-bold text-xl">WhatsApp Chats</CardTitle>
+          <CardTitle className="text-header-foreground font-bold text-xl">WhatsApp Chats</CardTitle>
           <div className="flex items-center space-x-2 relative">
             {isRefreshing ? (
-              <MdCloudSync className="animate-spin text-white w-6 h-6" />
+              <MdCloudSync className="animate-spin text-header-foreground w-6 h-6" />
             ) : refreshCooldown ? (
-              <MdCloudSync className="text-white w-6 h-6 pulse-animation" />
+              <MdCloudSync className="text-header-foreground w-6 h-6 pulse-animation" />
             ) : (
-              <FiRefreshCw className="text-white w-6 h-6" />
+              <FiRefreshCw className="text-header-foreground w-6 h-6" />
             )}
             <div className="flex flex-col">
               <Button
@@ -957,9 +957,9 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
                 onClick={handleRefresh}
                 disabled={loading || isRefreshing}
                 variant="ghost"
-                className={`bg-[#075E55] border-[#064C44] text-white inline-flex px-3 py-1 items-center justify-center rounded-lg text-sm ${
-                  loading || isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#064C44]'
-                } ${refreshCooldown ? 'bg-[#064C44]' : ''} ${refreshRequired ? 'animate-pulse bg-blue-700 hover:bg-blue-600' : ''}`}
+                className={`bg-header border-border text-header-foreground inline-flex px-3 py-1 items-center justify-center rounded-lg text-sm ${
+                  loading || isRefreshing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-accent'
+                } ${refreshCooldown ? 'bg-accent' : ''} ${refreshRequired ? 'animate-pulse bg-blue-700 hover:bg-blue-600' : ''}`}
                 onMouseEnter={() => refreshCooldown ? setRefreshTooltip('Sync in progress') : refreshRequired && setRefreshTooltip('Click to refresh contacts')}
                 onMouseLeave={() => setRefreshTooltip('')}
               >
@@ -971,12 +971,12 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
               {syncProgress && syncProgress.state === SYNC_STATES.SYNCING && (
                 <Progress 
                   value={syncProgress.progress || 0} 
-                  className="h-1 w-full bg-[#064C44]"
+                  className="h-1 w-full bg-secondary"
                 />
               )}
             </div>
             {refreshTooltip && (
-              <div className="absolute top-full mt-2 right-0 bg-gray-800 text-white text-xs rounded py-1 px-2 z-10">
+              <div className="absolute top-full mt-2 right-0 bg-popover text-popover-foreground text-xs rounded py-1 px-2 z-10">
                 {refreshTooltip}
               </div>
             )}
@@ -985,22 +985,22 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
       </CardHeader>
 
       {/* Search Input */}
-      <div className="sticky top-0 z-10 p-4 bg-white border-b border-gray-200">
+      <div className="sticky top-0 z-10 p-4 bg-background border-b border-border">
         <div className="relative">
           <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search contacts..."
-            className="w-full bg-white text-black px-10 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#075e54] placeholder-gray-500"
+            className="w-full bg-card text-foreground px-10 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted-foreground"
           />
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
           {searchQuery && (
             <Button
               onClick={() => setSearchQuery('')}
               variant="ghost"
               size="icon"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 text-gray-500 hover:text-gray-700"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
             >
               <FiX className="h-4 w-4" />
               <span className="sr-only">Clear search</span>
@@ -1019,7 +1019,7 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
             <Button
               onClick={() => loadContactsWithRetry()}
               variant="default"
-              className="bg-[#075e54] text-white hover:bg-[#064c44] mt-4"
+              className="mt-4"
             >
               Retry
             </Button>
@@ -1027,9 +1027,9 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
         ) : !searchedContacts?.length ? (
           <div className="flex flex-col items-center justify-center p-4 h-full min-h-[300px]">
             {searchQuery ? (
-              <p className="text-gray-500">No contacts found matching "{searchQuery}"</p>
+              <p className="text-muted-foreground">No contacts found matching "{searchQuery}"</p>
             ) : syncProgress ? (
-              <p className="text-gray-500">Syncing contacts...</p>
+              <p className="text-muted-foreground">Syncing contacts...</p>
             ) : (
               <>
                 <img 
@@ -1037,10 +1037,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
                   alt="Waiting for contacts" 
                   className="w-32 h-32 mb-4"
                 />
-                <p className="text-gray-500 text-center">
+                <p className="text-muted-foreground text-center">
                   Application syncs new contacts with new messages.<br />
                   Keep track of the refresh button
-            </p>
+                </p>
               </>
             )}
           </div>
@@ -1059,10 +1059,10 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
                   console.log('[DEBUG Mobile] Contact clicked:', contact.display_name);
                   handleContactSelect(contact);
                 }}
-                className="cursor-pointer active:bg-gray-700 hover:bg-gray-700 transition-colors duration-200"
-                onTouchStart={(e) => e.currentTarget.classList.add('bg-gray-700')}
+                className="cursor-pointer active:bg-accent hover:bg-accent transition-colors duration-200"
+                onTouchStart={(e) => e.currentTarget.classList.add('bg-accent')}
                 onTouchEnd={(e) => {
-                  e.currentTarget.classList.remove('bg-gray-700');
+                  e.currentTarget.classList.remove('bg-accent');
                   e.preventDefault();
                   handleContactSelect(contact);
                 }}
@@ -1074,15 +1074,15 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }) => {
         {/* Overlay that prevents interaction until refreshed */}
         {refreshRequired && !loading && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
-            <div className="bg-white p-6 rounded-lg text-center max-w-sm">
-              <FiRefreshCw className="mx-auto text-[#075E55] w-10 h-10 mb-4 animate-spin" />
-              <h3 className="text-gray-900 font-bold text-xl mb-2">Refresh Required</h3>
-              <p className="text-gray-700 mb-4">
+            <div className="bg-popover p-6 rounded-lg text-center max-w-sm">
+              <FiRefreshCw className="mx-auto text-primary w-10 h-10 mb-4 animate-spin" />
+              <h3 className="text-popover-foreground font-bold text-xl mb-2">Refresh Required</h3>
+              <p className="text-muted-foreground mb-4">
                 Please refresh your contacts to continue
               </p>
               <Button
                 onClick={handleRefresh}
-                className="bg-[#075E55] hover:bg-[#064C44] text-white"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Refresh Now
               </Button>

@@ -320,25 +320,25 @@ const LoadingChatView = ({ details }) => {
   const randomFact = SOCIAL_MEDIA_FUN_FACTS[Math.floor(Math.random() * SOCIAL_MEDIA_FUN_FACTS.length)];
 
   return (
-    <div className="flex flex-col h-full bg-[#ECE5DD]">
+    <div className="flex flex-col h-full bg-chat">
       {/* Header Skeleton */}
-      <div className="flex items-center p-3 bg-[#101515] border-b border-gray-300">
-        <Skeleton className="w-10 h-10 rounded-full bg-[#757575]" />
+      <div className="flex items-center p-3 bg-header border-b border-border">
+        <Skeleton className="w-10 h-10 rounded-full bg-muted" />
         <div className="ml-3 flex-1">
-          <Skeleton className="h-4 w-32 bg-[#757575] rounded" />
-          <Skeleton className="h-3 w-24 bg-[#757575] rounded mt-1" />
+          <Skeleton className="h-4 w-32 bg-muted rounded" />
+          <Skeleton className="h-3 w-24 bg-muted rounded mt-1" />
         </div>
       </div>
       {/* Messages Area Skeleton */}
       <div className="flex-1 p-3 space-y-3 overflow-y-auto">
         <div className="flex justify-start">
-          <Skeleton className="w-2/3 h-12 bg-[#E0FFEE] rounded-lg" />
+          <Skeleton className="w-2/3 h-12 bg-chat-bubble rounded-lg" />
         </div>
         <div className="flex justify-end">
-          <Skeleton className="w-2/3 h-10 bg-[#25D366] rounded-lg" />
+          <Skeleton className="w-2/3 h-10 bg-chat-bubble-sent rounded-lg" />
         </div>
         <div className="flex justify-start">
-          <Skeleton className="w-1/2 h-11 bg-[#E0FFEE] rounded-lg" />
+          <Skeleton className="w-1/2 h-11 bg-chat-bubble rounded-lg" />
         </div>
       </div>
       {/* Loading Indicator with Fun Fact */}
@@ -1033,11 +1033,11 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const renderConnectionStatus = useCallback(() => {
     switch (connectionStatus) {
       case CONNECTION_STATUS.CONNECTED:
-        return <span className="text-sm text-[#25D366]">online</span>;
+        return <span className="text-sm text-green-500">online</span>;
       case CONNECTION_STATUS.DISCONNECTED:
-        return <span className="text-sm text-[#757575]">offline</span>;
+        return <span className="text-sm text-muted-foreground">offline</span>;
       case CONNECTION_STATUS.CONNECTING:
-        return <span className="text-sm text-[#757575]">connecting...</span>;
+        return <span className="text-sm text-muted-foreground">connecting...</span>;
       default:
         return null;
     }
@@ -1048,7 +1048,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       return (
         <div className="flex flex-col items-center justify-center h-full">
           <LoadingChatView details={syncState.details} />
-          <p className="mt-2 text-[#757575]">
+          <p className="mt-2 text-muted-foreground">
             {loadingState === LOADING_STATES.INITIAL ? 'Preparing chat...' : 'Connecting to chat...'}
           </p>
         </div>
@@ -1059,7 +1059,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       return (
         <div className="flex flex-col items-center justify-center h-full">
           <LoadingChatView details={syncState.details} />
-          <p className="mt-2 text-[#757575]">Getting your messages...</p>
+          <p className="mt-2 text-muted-foreground">Getting your messages...</p>
         </div>
       );
     }
@@ -1073,7 +1073,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     }
 
     if (!messages.length) {
-      return <div className="text-[#757575] text-center">No messages yet</div>;
+      return <div className="text-muted-foreground text-center">No messages yet</div>;
     }
 
     return messages.map((message) => (
@@ -1153,15 +1153,15 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   // Add the rendering of the header with close button
   const renderHeader = () => {
     return (
-      <div className="flex items-center p-3 bg-[#0f1211] border-b border-[#25D366] sticky top-0 z-10">
+      <div className="flex items-center p-3 bg-header border-b border-border sticky top-0 z-10">
         <div className="flex items-center flex-1">
           {renderAvatar()}
-          <div className="ml-3 text-white">
+          <div className="ml-3 text-header-foreground">
             <h2 className="font-medium">{selectedContact?.display_name || 'Unknown'}</h2>
-            <div className="flex items-center space-x-2 text-xs text-gray-200">
+            <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               {renderConnectionStatus()}
               {/* Priority Badge replacing dropdown */}
-              <PriorityBadge 
+              <Badge 
                 priority={priority || selectedContact.metadata?.priority || 'medium'} 
                 onClick={() => {
                   // Cycle through priorities: low -> medium -> high -> low
@@ -1191,12 +1191,12 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   size="icon"
                   onClick={handleRefresh}
                   disabled={isRefreshing}
-                  className="text-white hover:bg-[#054c44] rounded-full"
+                  className="text-header-foreground hover:bg-accent rounded-full"
                 >
                   <FiRefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-neutral-900 text-white" side="bottom">
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
                 <p>Refresh messages</p>
               </TooltipContent>
             </Tooltip>
@@ -1208,12 +1208,12 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowBackgroundSettings(true)}
-                  className="text-white hover:bg-[#054c44] rounded-full"
+                  className="text-header-foreground hover:bg-accent rounded-full"
                 >
                   <Images className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-neutral-900 text-white" side="bottom">
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
                 <p>Change chat background</p>
               </TooltipContent>
             </Tooltip>
@@ -1225,13 +1225,13 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowChatbot(!showChatbot)}
-                  className="text-white hover:bg-[#054c44] rounded-full"
+                  className="text-header-foreground hover:bg-accent rounded-full"
                 >
                   <BotMessageSquare className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-neutral-900 text-white" side="bottom">
-                <p>Know your conversations better</p>
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
+                <p>Summarize chat</p>
               </TooltipContent>
             </Tooltip>
             
@@ -1242,31 +1242,34 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   variant="ghost"
                   size="icon"
                   onClick={handleSummaryClick}
-                  disabled={messages.length === 0 || isSummarizing}
-                  className="text-white hover:bg-[#054c44] rounded-full"
+                  disabled={isSummarizing}
+                  className="text-header-foreground hover:bg-accent rounded-full"
                 >
-                  <RiAiGenerate className={`h-4 w-4 ${isSummarizing ? 'animate-pulse' : ''}`} />
+                  {isSummarizing ? (
+                    <BotMessageSquare className="h-4 w-4 animate-pulse" />
+                  ) : (
+                    <BotMessageSquare className="h-4 w-4" />
+                  )}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-neutral-900 text-white" side="bottom">
-                <p>Generate chat summary</p>
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
+                <p>Summarize chat</p>
               </TooltipContent>
             </Tooltip>
             
             {/* Close Button */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={onClose}
-                  className="text-white hover:bg-[#054c44] rounded-full ml-2"
+                  className="text-header-foreground hover:bg-accent rounded-full"
                 >
-                  <FiX className="h-5 w-5" />
-                  <span className="sr-only">Close chat</span>
+                  <FiX className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent className="bg-neutral-900 text-white" side="bottom">
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
                 <p>Close chat</p>
               </TooltipContent>
             </Tooltip>
@@ -1291,9 +1294,9 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   }
 
   return (
-    <div className="chat-view-container whatsapp-chat-view flex flex-col h-full bg-neutral-900 relative overflow-x-hidden rounded-lg w-full">
+    <div className="chat-view-container whatsapp-chat-view flex flex-col h-full bg-chat relative overflow-x-hidden rounded-lg w-full">
       {!selectedContact?.id ? (
-        <div className="flex flex-col items-center justify-center h-full text-[#757575] bg-neutral-900">
+        <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-chat">
           <p>Select a contact to view the chat</p>
         </div>
       ) : loadingState === LOADING_STATES.CONNECTING || loadingState === LOADING_STATES.FETCHING ? (
@@ -1338,20 +1341,20 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
           {/* Summary Modal */}
           {showSummaryModal && summaryData && (
             <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50 p-6">
-              <div className="bg-neutral-900 backdrop-blur-lg bg-opacity-60 border border-white/10 rounded-lg p-6 max-w-2xl w-full mx-4 space-y-4">
+              <div className="bg-popover backdrop-blur-lg bg-opacity-60 border border-border rounded-lg p-6 max-w-2xl w-full mx-4 space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-xl font-medium text-gray-200 opa">Chat <span className="bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">Summary</span></h3>
+                  <h3 className="text-xl font-medium text-popover-foreground">Chat <span className="bg-gradient-to-r from-purple-400 to-pink-600 bg-clip-text text-transparent">Summary</span></h3>
                   <button
                     onClick={() => setShowSummaryModal(false)}
-                    className="text-[#757575] w-auto rounded-full bg-neutral-900 hover:text-[#FFFFFF]"
+                    className="text-muted-foreground w-auto rounded-full bg-popover hover:text-foreground"
                   >
                     <FiX className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <h4 className="text-[#FFFFFF] font-medium mb-1">Main Points</h4>
-                    <ul className="list-disc list-inside text-[#CCCCCC] space-y-1">
+                    <h4 className="text-foreground font-medium mb-1">Main Points</h4>
+                    <ul className="list-disc list-inside text-muted-foreground space-y-1">
                       {summaryData.summary.mainPoints.map((point, index) => (
                         <li key={index}>{point}</li>
                       ))}
@@ -1359,8 +1362,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   </div>
                   {summaryData.summary.actionItems.length > 0 && (
                     <div>
-                      <h4 className="text-[#FFFFFF] font-medium mb-1">Action Items</h4>
-                      <ul className="list-disc list-inside text-[#CCCCCC] space-y-1">
+                      <h4 className="text-foreground font-medium mb-1">Action Items</h4>
+                      <ul className="list-disc list-inside text-muted-foreground space-y-1">
                         {summaryData.summary.actionItems.map((item, index) => (
                           <li key={index}>{item}</li>
                         ))}
@@ -1369,15 +1372,15 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   )}
                   {summaryData.summary.keyDecisions.length > 0 && (
                     <div>
-                      <h4 className="text-[#FFFFFF] font-medium mb-1">Key Decisions</h4>
-                      <ul className="list-disc list-inside text-[#CCCCCC] space-y-1">
+                      <h4 className="text-foreground font-medium mb-1">Key Decisions</h4>
+                      <ul className="list-disc list-inside text-muted-foreground space-y-1">
                         {summaryData.summary.keyDecisions.map((decision, index) => (
                           <li key={index}>{decision}</li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  <div className="text-sm text-[#757575] pt-2 border-t border-[#25D366]">
+                  <div className="text-sm text-muted-foreground pt-2 border-t border-border">
                     <p>Analyzed {summaryData.messageCount} messages</p>
                     <p>From: {new Date(summaryData.timespan.start).toLocaleString()}</p>
                     <p>To: {new Date(summaryData.timespan.end).toLocaleString()}</p>
@@ -1396,7 +1399,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
 
           {/* Add WhatsappChatbot component when showChatbot is true */}
           {showChatbot && selectedContact?.id && (
-            <div className="border-t border-[#25D366]">
+            <div className="border-t border-border">
               <WhatsappChatbot contactId={selectedContact.id} />
             </div>
           )}

@@ -163,7 +163,7 @@ export function AppSidebar({
         className={`${isMobile ? '!w-auto max-w-[240px]' : '!w-[calc(var(--sidebar-width-icon)_+_2px)]'} border-r border-sidebar-border bg-sidebar`}
       >
         <SidebarHeader className="px-2 py-3">
-          <div className={`flex ${isMobile ? 'w-full justify-start gap-2 px-1' : 'aspect-square size-9 justify-center'} items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground ${isMobile ? '' : 'mx-auto'}`}>
+          <div className={`flex ${isMobile ? 'w-full justify-start gap-2 px-1' : 'aspect-square size-9 justify-center'} items-center rounded-lg bg-primary text-primary-foreground ${isMobile ? '' : 'mx-auto'}`}>
             <Command className="size-4" />
             {isMobile && <span className="text-sm font-medium">DailyFix</span>}
           </div>

@@ -218,6 +218,9 @@ export default function Page() {
     // Save to localStorage for persistence
     localStorage.setItem('dailyfix_active_platform', platformId);
     
+    // Dispatch an event to notify contact lists of the switch
+    window.dispatchEvent(new Event('platform-switched'));
+
     // Show confirmation to user
     toast.success(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
   }
@@ -369,7 +372,7 @@ export default function Page() {
       />
       <SidebarInset className="">
         {/* Header */}
-        <header className="flex h-16 shrink-0 items-center gap-2 bg-[#131516] p-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 bg-header p-4">
           {!isMobile || (!selectedContact && !settingsOpen) ? (
             <SidebarTrigger className="-ml-1" onClick={() => {}} />
           ) : (
@@ -378,7 +381,7 @@ export default function Page() {
                 variant="ghost"
                 size="icon"
                 onClick={handleChatClose}
-                className="text-white hover:bg-gray-800"
+                className="text-foreground hover:bg-accent"
               >
                 <ArrowLeft className="h-5 w-5" />
                 <span className="sr-only">Back to contacts</span>
@@ -387,13 +390,13 @@ export default function Page() {
           )}
           <Separator orientation="vertical" className="mr-2 h-4" />
           {settingsOpen ? (
-            <div className="flex-1 ml-4 text-lg font-medium text-white">Settings</div>
+            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">Settings</div>
           ) : selectedContact && isMobile ? (
-            <div className="flex-1 ml-4 text-lg font-medium text-white">
+            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
               {selectedContact.display_name}
             </div>
           ) : (
-            <div className="flex-1 ml-4 text-lg font-medium text-white flex items-center">
+            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground flex items-center">
               {renderPlatformIcon()}
               {activeContactList
                 ? `${activeContactList.charAt(0).toUpperCase() + activeContactList.slice(1)} Inbox`
@@ -405,7 +408,7 @@ export default function Page() {
               variant="ghost"
               size="icon"
               onClick={() => setSettingsOpen(false)}
-              className="ml-auto text-white hover:bg-gray-800"
+              className="ml-auto text-header-foreground hover:bg-accent"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -429,7 +432,7 @@ export default function Page() {
               variant="ghost"
               size="icon"
               onClick={() => setSettingsOpen(true)}
-              className="ml-auto text-white hover:bg-gray-800"
+              className="ml-auto text-header-foreground hover:bg-accent"
             >
               <SettingsIcon className="h-5 w-5" />
               <span className="sr-only">Settings</span>
@@ -438,12 +441,12 @@ export default function Page() {
         </header>
 
         {/* Main Content */}
-        <div className="flex flex-1 h-full bg-black ml-6 chat-glowing-border overflow-clip" ref={contentRef}>
+        <div className="flex flex-1 h-full bg-background ml-6 chat-glowing-border overflow-clip" ref={contentRef}>
           {settingsOpen ? (
             <>
               <div
                 style={{ width: isMobile ? '0%' : `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
-                className={`h-full flex flex-col bg-black ${isMobile ? 'hidden' : ''}`}
+                className={`h-full flex flex-col bg-background ${isMobile ? 'hidden' : ''}`}
               >
                 <div className="flex-1 flex flex-col p-4 overflow-hidden rounded-lg">
                   {/* Inbox content */}
@@ -452,7 +455,7 @@ export default function Page() {
                       <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
                         <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
                       </div>
-                      <p className="text-gray-400 text-center text-lg">
+                      <p className="text-muted-foreground text-center text-lg">
                         No platforms connected, go ahead and connect to a platform in Settings
                       </p>
                     </div>
@@ -472,15 +475,15 @@ export default function Page() {
               {!isMobile && (
                 <div
                   ref={resizerRef}
-                  className="w-4 h-full bg-black flex items-center justify-center cursor-col-resize z-50"
+                  className="w-4 h-full bg-transparent flex items-center justify-center cursor-col-resize z-50"
                   onMouseDown={handleMouseDown}
                   onMouseEnter={() => setIsResizerHovered(true)}
                   onMouseLeave={() => setIsResizerHovered(false)}
                 >
-                  <div className={`h-full w-[1px] bg-gray-500 ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
+                  <div className={`h-full w-[1px] bg-border ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
                 </div>
               )}
-              <div className="flex-1 h-full flex flex-col bg-[#131516] overflow-auto">
+              <div className="flex-1 h-full flex flex-col bg-card overflow-auto">
                 <div className="flex-1 p-6 overflow-auto">
                   <PlatformSettings />
                 </div>
@@ -490,7 +493,7 @@ export default function Page() {
             <>
               {/* Mobile: Either show contact list OR chat view, but not both */}
               {isMobile && selectedContact ? (
-                <div className="flex-1 h-full w-full bg-[#1C1C1C]">
+                <div className="flex-1 h-full w-full bg-chat">
                   {activeContactList === 'whatsapp' ? (
                     <WhatsAppChatView
                       selectedContact={selectedContact}
@@ -517,7 +520,7 @@ export default function Page() {
                     // Fallback content in case neither WhatsApp nor Telegram is active
                     <div className="flex items-center justify-center h-full p-4 text-center">
                       <div>
-                        <p className="text-gray-400 mb-4">No active chat selected or invalid platform.</p>
+                        <p className="text-muted-foreground mb-4">No active chat selected or invalid platform.</p>
                         <Button variant="outline" onClick={handleChatClose}>
                           Return to contacts
                         </Button>
@@ -533,7 +536,7 @@ export default function Page() {
                       width: !isMobile && selectedContact ? '35%' : '100%',
                       transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
                     }}
-                    className="h-full flex flex-col bg-black"
+                    className="h-full flex flex-col bg-background"
                   >
                     <div className="flex-1 flex flex-col p-4 overflow-auto rounded-lg">
                       {/* Inbox content */}
@@ -542,7 +545,7 @@ export default function Page() {
                           <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
                           <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
                           </div>
-                          <p className="text-gray-400 text-center text-lg">
+                          <p className="text-muted-foreground text-center text-lg">
                             No platforms connected, go ahead and connect to a platform in Settings
                           </p>
                         </div>
