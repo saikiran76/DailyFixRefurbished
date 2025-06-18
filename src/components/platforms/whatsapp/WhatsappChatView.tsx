@@ -14,7 +14,7 @@ import { initializeSocket } from '@/utils/socket';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
 import MessageItem from '@/components/platforms/whatsapp/MessageItem';
 import { messageService } from '@/services/messageService';
-import { priorityService, Priority } from '@/services/priorityService';
+import { priorityService, type Priority } from '@/services/priorityService';
 import PriorityBadge from '@/components/ui/PriorityBadge';
 import {
   fetchMessages,
