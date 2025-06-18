@@ -14,6 +14,8 @@ import { initializeSocket } from '@/utils/socket';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
 import MessageItem from '@/components/platforms/telegram/MessageItem';
 import { messageService } from '@/services/messageService';
+import { priorityService, Priority } from '@/services/priorityService';
+import PriorityBadge from '@/components/ui/PriorityBadge';
 import {
   fetchMessages,
   sendMessage,
@@ -40,8 +42,6 @@ import { WiCloudRefresh } from "react-icons/wi";
 import { RiAiGenerate } from "react-icons/ri";
 import { IoArrowBack } from "react-icons/io5";
 import { BotMessageSquare } from "lucide-react";
-import { Images } from "lucide-react";
-// import telegramChatbot from '@/components/AI/telegramChatbot';
 import { motion } from 'framer-motion';
 import ContactAvatar from './ContactAvatar';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
@@ -53,11 +53,13 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ErrorMessage from '@/components/ui/ErrorMessage';
+import { Image } from "lucide-react";
 import ChatBackgroundSettings, { getChatBackground } from '@/components/ui/ChatBackgroundSettings';
 import { Badge } from "@/components/ui/badge";
 // import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import telegramInfoPanel from './telegramInfoPanel';
+// import TelegramInfoPanel from './TelegramInfoPanel';
+
 // Import environment variables
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -122,94 +124,6 @@ const spinVariants = {
       ease: "linear"
     }
   }
-};
-
-// Priority Badge component
-const PriorityBadge = ({ priority, onClick }) => {
-  if (!priority) return null;
-  
-  const getVariantAndClass = () => {
-    switch (priority) {
-      case 'high':
-        return { variant: 'destructive', className: 'bg-red-500 text-white rounded' };
-      case 'medium':
-        return { variant: 'default', className: 'bg-yellow-500 bg-opacity-70 text-black rounded' };
-      case 'low':
-        return { variant: 'default', className: 'bg-green-600 text-white/80 rounded-lg' };
-      default:
-        return { variant: 'outline', className: 'bg-gray-400 bg-opacity-70 text-white rounded' };
-    }
-  };
-  
-  const { variant, className } = getVariantAndClass();
-  const label = priority.charAt(0).toUpperCase() + priority.slice(1);
-  
-  return (
-    <Badge 
-      variant={variant}
-      className={`text-xs font-medium py-0.5 px-2 rounded cursor-pointer ${className} hover:opacity-80`}
-      onClick={onClick}
-    >
-      {label} Priority
-    </Badge>
-  );
-};
-
-const SyncProgressIndicator = ({ syncState, loadingState }) => {
-  const getStatusColor = () => {
-    if (syncState.state === SYNC_STATES.REJECTED) {
-        return 'bg-red-500';
-    } else if (syncState.state === SYNC_STATES.APPROVED) {
-      return 'bg-green-500';
-    } else {
-        return 'bg-yellow-500';
-    }
-  };
-
-  // Hide the indicator if loading is complete or sync is complete
-  if (loadingState === LOADING_STATES.COMPLETE ||
-      (syncState.state === SYNC_STATES.APPROVED && syncState.progress === 100)) {
-    return null;
-  }
-
-  // Show appropriate loading message based on state
-  const getMessage = () => {
-    switch (loadingState) {
-      case LOADING_STATES.CONNECTING:
-        return 'Connecting to chat room...';
-      case LOADING_STATES.FETCHING:
-        return 'Getting your messages...';
-      default:
-        return syncState.details;
-    }
-  };
-
-  // Using Shadcn UI components now
-  return (
-    <div className="absolute top-0 left-0 right-0 z-10">
-      <Card className="m-4 bg-[#24283b] border-none shadow-lg">
-        <CardContent className="p-4 space-y-2">
-          <div className="flex justify-between text-sm text-gray-400">
-            <span>{getMessage()}</span>
-            {syncState.state === SYNC_STATES.APPROVED && (
-              <span>{syncState.processedMessages} / {syncState.totalMessages} messages</span>
-            )}
-          </div>
-          <div className="w-full bg-gray-700 rounded-full overflow-hidden">
-            <Progress 
-              value={syncState.progress} 
-              className="h-2"
-            />
-          </div>
-          {syncState.state === SYNC_STATES.REJECTED && syncState.errors?.length > 0 && (
-            <div className="text-xs text-red-400 mt-1">
-              {syncState.errors[syncState.errors.length - 1].message}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
 };
 
 const handleSyncError = (error, contactId) => {
@@ -358,6 +272,63 @@ const LoadingChatView = ({ details }) => {
   );
 };
 
+const SyncProgressIndicator = ({ syncState, loadingState }) => {
+  const getStatusColor = () => {
+    if (syncState.state === SYNC_STATES.REJECTED) {
+        return 'bg-red-500';
+    } else if (syncState.state === SYNC_STATES.APPROVED) {
+      return 'bg-green-500';
+    } else {
+        return 'bg-yellow-500';
+    }
+  };
+
+  // Hide the indicator if loading is complete or sync is complete
+  if (loadingState === LOADING_STATES.COMPLETE ||
+      (syncState.state === SYNC_STATES.APPROVED && syncState.progress === 100)) {
+    return null;
+  }
+
+  // Show appropriate loading message based on state
+  const getMessage = () => {
+    switch (loadingState) {
+      case LOADING_STATES.CONNECTING:
+        return 'Connecting to chat room...';
+      case LOADING_STATES.FETCHING:
+        return 'Getting your messages...';
+      default:
+        return syncState.details;
+    }
+  };
+
+  // Using Shadcn UI components now
+  return (
+    <div className="absolute top-0 left-0 right-0 z-10">
+      <Card className="m-4 bg-[#24283b] border-none shadow-lg">
+        <CardContent className="p-4 space-y-2">
+          <div className="flex justify-between text-sm text-gray-400">
+            <span>{getMessage()}</span>
+            {syncState.state === SYNC_STATES.APPROVED && (
+              <span>{syncState.processedMessages} / {syncState.totalMessages} messages</span>
+            )}
+          </div>
+          <div className="w-full bg-gray-700 rounded-full overflow-hidden">
+            <Progress 
+              value={syncState.progress} 
+              className="h-2"
+            />
+          </div>
+          {syncState.state === SYNC_STATES.REJECTED && syncState.errors?.length > 0 && (
+            <div className="text-xs text-red-400 mt-1">
+              {syncState.errors[syncState.errors.length - 1].message}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -388,7 +359,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   });
   const [socketInitError, setSocketInitError] = useState(false);
   const [previewMedia, setPreviewMedia] = useState(null);
-  const [priority, setPriority] = useState(null);
+  const [priority, setPriority] = useState<Priority>('medium');
   const [showSummary, setShowSummary] = useState(false);
   const [summary, setSummary] = useState(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -406,8 +377,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     details: '',
     processedMessages: 0,
     totalMessages: 0,
+    errors: [],
   });
-  const [showChatbot, setShowChatbot] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [chatBackground, setChatBackground] = useState<string>("");
 
@@ -673,6 +644,49 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 contactId: selectedContact.id,
                 error: error.message,
               });
+              
+              // Handle contact removal due to room not found
+              if (error.code === 'CONTACT_REMOVED') {
+                logger.info('[ChatView] Contact was auto-deleted, navigating back to dashboard');
+                setLoadingState(LOADING_STATES.ERROR);
+                setSyncState((prev) => ({
+                  ...prev,
+                  state: SYNC_STATES.REJECTED,
+                  progress: 0,
+                  details: 'Contact no longer accessible',
+                  errors: [
+                    ...(prev.errors || []),
+                    {
+                      message: 'Contact has been removed as it is no longer accessible',
+                      timestamp: Date.now(),
+                    },
+                  ],
+                }));
+                
+                // Show a more user-friendly message
+                toast.error('This contact is no longer accessible and has been removed', {
+                  duration: 5000,
+                  style: {
+                    background: '#EF4444',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)',
+                  },
+                });
+                
+                // Navigate back to dashboard after a short delay
+                setTimeout(() => {
+                  if (typeof onClose === 'function') {
+                    onClose();
+                  } else {
+                    navigate('/dashboard');
+                  }
+                }, 2000);
+                
+                return;
+              }
+              
               setLoadingState(LOADING_STATES.ERROR);
               setSyncState((prev) => ({
                 ...prev,
@@ -680,7 +694,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 progress: 0,
                 details: 'Failed to load messages',
                 errors: [
-                  ...prev.errors || [],
+                  ...(prev.errors || []),
                   {
                     message: error.message,
                     timestamp: Date.now(),
@@ -1037,32 +1051,59 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     }
   }, [loadingState, messages.length, error]);
 
+  // Load priority from priorityService when contact changes
   useEffect(() => {
-    if (selectedContact) {
-      setPriority(selectedContact.metadata?.priority || 'medium');
+    if (selectedContact?.id) {
+      const contactPriority = priorityService.getPriority(selectedContact.id);
+      setPriority(contactPriority);
     }
-  }, [selectedContact]);
+  }, [selectedContact?.id]);
 
-  const handlePriorityChange = (priority) => {
-    if (!selectedContact) return;
+  // Listen for priority changes from other components
+  useEffect(() => {
+    const handlePriorityChange = (event: CustomEvent) => {
+      const { contactId, priority: newPriority } = event.detail;
+      if (contactId === String(selectedContact?.id)) {
+        setPriority(newPriority);
+      }
+    };
 
-    setPriority(priority);
+    window.addEventListener('priority-changed', handlePriorityChange as EventListener);
+    return () => {
+      window.removeEventListener('priority-changed', handlePriorityChange as EventListener);
+    };
+  }, [selectedContact?.id]);
 
+  const handlePriorityChange = (newPriority: Priority) => {
+    if (!selectedContact?.id) return;
+
+    setPriority(newPriority);
+    
+    // Save to priorityService (which handles localStorage)
+    priorityService.setPriority(selectedContact.id, newPriority);
+
+    // Update Redux state
     dispatch(updateContactPriority({
       contactId: selectedContact.id,
-      priority,
+      priority: newPriority,
     }));
 
+    // Update parent component
     if (typeof onContactUpdate === 'function') {
       const updatedContact = {
         ...selectedContact,
         metadata: {
           ...selectedContact.metadata,
-          priority,
+          priority: newPriority,
         },
       };
       onContactUpdate(updatedContact);
     }
+
+    logger.info('[Telegram ChatView] Priority changed:', {
+      contactId: selectedContact.id,
+      priority: newPriority
+    });
   };
 
   const renderConnectionStatus = useCallback(() => {
@@ -1196,16 +1237,15 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
             <h2 className="font-medium">{selectedContact?.display_name || 'Unknown'}</h2>
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               {renderConnectionStatus()}
-              {/* Priority Badge replacing dropdown */}
-              <PriorityBadge 
-                priority={priority || selectedContact.metadata?.priority || 'medium'} 
+              {/* Enhanced Priority Badge with proper colors */}
+              <PriorityBadge
+                priority={priority}
                 onClick={() => {
-                  // Cycle through priorities: low -> medium -> high -> low
-                  const currentPriority = priority || selectedContact.metadata?.priority || 'medium';
-                  const nextPriority = currentPriority === 'low' ? 'medium' : 
-                                      currentPriority === 'medium' ? 'high' : 'low';
+                  const nextPriority = priorityService.getNextPriority(priority);
                   handlePriorityChange(nextPriority);
                 }}
+                size="sm"
+                className="ml-2"
               />
             </div>
           </div>
@@ -1246,7 +1286,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   onClick={() => setShowBackgroundSettings(true)}
                   className="text-header-foreground hover:bg-accent rounded-full"
                 >
-                  <Images className="h-4 w-4" />
+                  <Image className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
@@ -1254,24 +1294,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               </TooltipContent>
             </Tooltip>
             
-            {/* AI Chatbot Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setShowChatbot(!showChatbot)}
-                  className="text-header-foreground hover:bg-accent rounded-full"
-                >
-                  <BotMessageSquare className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
-                <p>Know your conversations better</p>
-              </TooltipContent>
-            </Tooltip>
-            
-            {/* Summary Button */}
+            {/* Summary Button - FIXED: Different icon and tooltip */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1282,14 +1305,14 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   className="text-header-foreground hover:bg-accent rounded-full"
                 >
                   {isSummarizing ? (
-                    <BotMessageSquare className="h-4 w-4 animate-pulse" />
+                    <RiAiGenerate className="h-4 w-4 animate-pulse" />
                   ) : (
-                    <BotMessageSquare className="h-4 w-4" />
+                    <RiAiGenerate className="h-4 w-4" />
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
-                <p>Summarize chat</p>
+                <p>Generate chat summary</p>
               </TooltipContent>
             </Tooltip>
             
@@ -1433,18 +1456,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
             onClose={() => setShowBackgroundSettings(false)}
             platform="telegram"
           />
-
-          {/* Add telegramChatbot component when showChatbot is true */}
-          {showChatbot && selectedContact?.id && (
-            <div className="border-t border-border">
-              <telegramChatbot contactId={selectedContact.id} />
-            </div>
-          )}
         </div>
       )}
-
-      {/* Add Chatbot component when a contact is selected */}
-      {/* {selectedContact?.id && <Chatbot contactId={selectedContact.id} />} */}
     </div>
   );
 };

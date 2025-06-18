@@ -20,17 +20,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send, ArrowLeft } from "lucide-react"
+import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send, ArrowLeft, LayoutDashboard, Inbox } from "lucide-react"
 import PlatformSettings from "@/components/PlatformSettings"
 import PlatformsInfo from "@/components/PlatformsInfo"
 import WhatsappContactList from "@/components/platforms/whatsapp/WhatsappContactList"
 import TelegramContactList from "@/components/platforms/telegram/TelegramContactList"
 import { ChatViewWithErrorBoundary as WhatsAppChatView } from '@/components/platforms/whatsapp/WhatsappChatView'
 import { ChatViewWithErrorBoundary as TelegramChatView } from '@/components/platforms/telegram/TelegramChatView'
+import Dashboard from '@/components/Dashboard'
 import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage'
 import { toast } from 'react-hot-toast'
 import logger from '@/utils/logger'
 import { useMousePosition } from '@/hooks/useMousePosition'
+
 // Define interface for contact objects
 interface Contact {
   id: number;
@@ -45,6 +47,8 @@ interface Contact {
 }
 
 export default function Page() {
+  // State to track current view (dashboard or inbox)
+  const [currentView, setCurrentView] = useState<'dashboard' | 'inbox'>('dashboard')
   // State to track if content below header is visible
   const [contentVisible, setContentVisible] = useState(true)
   // State to track if settings are open
@@ -253,6 +257,16 @@ export default function Page() {
     setSelectedContactId(null);
     setSelectedContact(null);
   }
+
+  // Handle view toggle between dashboard and inbox
+  const handleViewToggle = (view: 'dashboard' | 'inbox') => {
+    setCurrentView(view);
+    // Reset selected contact when switching views
+    setSelectedContactId(null);
+    setSelectedContact(null);
+    // Close settings when switching views
+    setSettingsOpen(false);
+  }
   
   // Listen for open-settings events
   useEffect(() => {
@@ -355,6 +369,30 @@ export default function Page() {
     return null;
   };
 
+  // Function to render header title based on current view
+  const renderHeaderTitle = () => {
+    if (settingsOpen) {
+      return "Settings";
+    }
+    
+    if (currentView === 'dashboard') {
+      return "Dashboard";
+    }
+    
+    if (selectedContact && isMobile) {
+      return selectedContact.display_name;
+    }
+    
+    return (
+      <div className="flex items-center">
+        {renderPlatformIcon()}
+        {activeContactList
+          ? `${activeContactList.charAt(0).toUpperCase() + activeContactList.slice(1)} Inbox`
+          : 'Inbox'}
+      </div>
+    );
+  };
+
   return (
     <SidebarProvider 
       className="h-screen"
@@ -372,7 +410,7 @@ export default function Page() {
       />
       <SidebarInset className="">
         {/* Header */}
-        <header className="flex h-16 shrink-0 items-center gap-2 bg-header p-4">
+        <header className="flex h-16 shrink-0 items-center gap-2 bg-header whatsapp-glowing-border p-4">
           {!isMobile || (!selectedContact && !settingsOpen) ? (
             <SidebarTrigger className="-ml-1" onClick={() => {}} />
           ) : (
@@ -389,20 +427,35 @@ export default function Page() {
             )
           )}
           <Separator orientation="vertical" className="mr-2 h-4" />
-          {settingsOpen ? (
-            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">Settings</div>
-          ) : selectedContact && isMobile ? (
-            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
-              {selectedContact.display_name}
-            </div>
-          ) : (
-            <div className="flex-1 ml-4 text-lg font-medium text-header-foreground flex items-center">
-              {renderPlatformIcon()}
-              {activeContactList
-                ? `${activeContactList.charAt(0).toUpperCase() + activeContactList.slice(1)} Inbox`
-                : 'Inbox'}
+          
+          {/* View Toggle Buttons */}
+          {!settingsOpen && !selectedContact && (
+            <div className="flex items-center space-x-2 mr-4">
+              <Button
+                variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewToggle('dashboard')}
+                className="text-header-foreground"
+              >
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Dashboard
+              </Button>
+              <Button
+                variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => handleViewToggle('inbox')}
+                className="text-header-foreground"
+              >
+                <Inbox className="h-4 w-4 mr-2" />
+                Inbox
+              </Button>
             </div>
           )}
+          
+          <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
+            {renderHeaderTitle()}
+          </div>
+          
           {settingsOpen ? (
             <Button
               variant="ghost"
@@ -441,8 +494,14 @@ export default function Page() {
         </header>
 
         {/* Main Content */}
-        <div className="flex flex-1 h-full bg-background ml-6 chat-glowing-border overflow-clip" ref={contentRef}>
-          {settingsOpen ? (
+        <div className="flex flex-1 h-full bg-background ml-6" ref={contentRef}>
+          {/* Dashboard View */}
+          {currentView === 'dashboard' && !settingsOpen && (
+            <Dashboard />
+          )}
+
+          {/* Settings View */}
+          {settingsOpen && (
             <>
               <div
                 style={{ width: isMobile ? '0%' : `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
@@ -489,7 +548,10 @@ export default function Page() {
                 </div>
               </div>
             </>
-          ) : (
+          )}
+
+          {/* Inbox View */}
+          {currentView === 'inbox' && !settingsOpen && (
             <>
               {/* Mobile: Either show contact list OR chat view, but not both */}
               {isMobile && selectedContact ? (

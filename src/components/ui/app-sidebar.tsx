@@ -182,17 +182,17 @@ export function AppSidebar({
               <Tooltip delayDuration={300}>
                 <TooltipTrigger asChild>
                   <button
-                    className={buttonClass}
+                    className={`${buttonClass} text-sm`}
                     onClick={() => {
                       console.log('[AppSidebar] Settings clicked');
                       if (onSettingsSelected) onSettingsSelected();
                     }}
                   >
-                    <Settings className="h-4 w-4" />
+                    🛞
                     {isMobile && <span className="text-sm">Settings</span>}
                   </button>
                 </TooltipTrigger>
-                <TooltipContent className="bg-popover border-border" side="right" sideOffset={8}>
+                <TooltipContent className="bg-popover border-border bg-red-400" side="right" sideOffset={8}>
                   Settings
                 </TooltipContent>
               </Tooltip>
@@ -207,14 +207,14 @@ export function AppSidebar({
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
                       <button
-                        className={buttonClass}
+                        className={`${buttonClass} text-sm`}
                         onClick={() => setHelpOpen(true)}
                       >
-                        <HelpCircle className="h-4 w-4" />
+                        🆘
                         {isMobile && <span className="text-sm">Help</span>}
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent className="bg-popover border-border" side="right"sideOffset={8}>
+                    <TooltipContent className="bg-popover bg-red-400 border-border" side="right"sideOffset={8}>
                       Help
                     </TooltipContent>
                   </Tooltip>
@@ -231,7 +231,7 @@ export function AppSidebar({
           
           {/* Theme Toggle */}
           <SidebarGroup className="px-0 mb-4">
-            <ThemeToggle />
+            <ThemeToggle /> 
           </SidebarGroup>
           
           <NavUser />

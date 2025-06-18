@@ -22,6 +22,34 @@ class MessageService {
         hasMore: (response.data.data?.messages || response.data.messages || []).length === (params.limit || 20)
       };
     } catch (error) {
+      // Handle 410 status code - contact was auto-deleted due to room not found
+      if (error.response?.status === 410) {
+        const errorData = error.response.data;
+        logger.info(`[MessageService] Contact auto-deleted due to room not found:`, {
+          contactId,
+          platform,
+          reason: errorData?.reason,
+          status: errorData?.status
+        });
+        
+        // Dispatch a custom event to notify the UI about contact removal
+        window.dispatchEvent(new CustomEvent('contact-auto-deleted', {
+          detail: {
+            contactId: parseInt(contactId),
+            platform,
+            reason: errorData?.reason || 'room_not_found',
+            message: errorData?.message || 'Contact no longer accessible'
+          }
+        }));
+        
+        // Throw a specific error that the UI can catch and handle gracefully
+        const contactRemovedError = new Error(errorData?.message || 'Contact has been removed as it is no longer accessible');
+        contactRemovedError.code = 'CONTACT_REMOVED';
+        contactRemovedError.contactId = parseInt(contactId);
+        contactRemovedError.platform = platform;
+        throw contactRemovedError;
+      }
+      
       logger.error(`[MessageService] Error fetching ${platform} messages:`, error);
       throw error;
     }

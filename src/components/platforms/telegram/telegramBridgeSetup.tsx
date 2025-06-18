@@ -217,7 +217,7 @@ const TelegramBridgeSetup = ({ onComplete, onCancel, relogin = false }: Telegram
       logger.info('[telegramBridgeSetup] Starting QR code timer');
       
       // Create a ref to track current time
-      const timeLeftRef = { current: 35 }; // Changed from 60 to 35 seconds
+      const timeLeftRef = { current: 20 }; // Changed from 60 to 35 seconds
       
       // Start with 35 seconds for QR code validity
       dispatch(setTelegramTimeLeft(timeLeftRef.current));

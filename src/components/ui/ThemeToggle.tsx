@@ -30,9 +30,9 @@ const ThemeToggle = ({ variant = "outline", showTooltip = true }: ThemeTogglePro
   const renderThemeIcon = () => {
     switch (theme) {
       case 'dark':
-        return <Moon className="h-4 w-4" />;
+        return <p>🌙</p>;
       case 'light':
-        return <Sun className="h-4 w-4" />;
+        return <p>🌞</p>;
       default:
         return <Monitor className="h-4 w-4" />;
     }

@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback, useState, memo, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
+import type { RootState, AppDispatch } from '@/store/store';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
 import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
@@ -17,6 +18,7 @@ import '@/components/styles/ShakeAnimation.css';
 import platformManager from '@/services/PlatformManager';
 import ErrorMessage from '@/components/ui/ErrorMessage';
 import { Virtuoso } from 'react-virtuoso';
+import { Loader2 } from "lucide-react";
 
 // Import shadcn UI components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -27,6 +29,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogTrigger 
+} from "@/components/ui/alert-dialog";
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000;
@@ -81,11 +94,12 @@ const PriorityBadge = ({ priority }) => {
     }
   };
   
-  const { className } = getPriorityClasses();
+  const className = getPriorityClasses();
   const label = priority.charAt(0).toUpperCase() + priority.slice(1);
   
   return (
     <Badge 
+      variant="outline"
       className={`text-xs font-medium py-0.5 px-2 rounded ${className}`}
     >
       {label} Priority
@@ -94,12 +108,27 @@ const PriorityBadge = ({ priority }) => {
 };
 
 // Contact item component using shadcn components
-const ContactItem = memo(({ contact, onClick, isSelected }) => {
-  const dispatch = useDispatch();
-  const priority = useSelector(state => selectContactPriority(state, contact.id));
+interface ContactItemProps {
+  contact: {
+    id: number;
+    display_name: string;
+    last_message?: string;
+    last_message_at?: string;
+    avatar_url?: string;
+    membership?: string;
+  };
+  onClick: () => void;
+  isSelected: boolean;
+}
+
+const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) => {
+  const dispatch = useDispatch<AppDispatch>();
+  const priority = useSelector((state: RootState) => selectContactPriority(state, contact.id));
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(contact.display_name);
   const [showTooltip, setShowTooltip] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const editInputRef = useRef(null);
 
   useEffect(() => {
@@ -118,9 +147,65 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
     setIsEditing(true);
   };
 
-  const handleDelete = (e) => {
+  const handleDeleteClick = (e) => {
     e.stopPropagation();
-    dispatch(hideContact(contact.id));
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true);
+    
+    try {
+      // Call the backend API to delete the contact
+      const response = await api.delete(`/api/v1/telegram/contacts/${contact.id}`, {
+        data: { reason: 'Deleted by user' }
+      });
+
+      if (response.data?.status === 'success') {
+        // Remove from Redux state
+        dispatch(hideContact(contact.id));
+        
+        // Success feedback with smooth animation
+        toast.success(`${contact.display_name} has been removed from your contacts`, {
+          duration: 4000,
+          style: {
+            background: '#3B82F6',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+          },
+        });
+        
+        logger.info('[Telegram] Contact deleted successfully:', {
+          contactId: contact.id,
+          contactName: contact.display_name
+        });
+      } else {
+        throw new Error(response.data?.message || 'Failed to delete contact');
+      }
+    } catch (error) {
+      logger.error('[Telegram] Error deleting contact:', {
+        contactId: contact.id,
+        error: error.message
+      });
+      
+      // Error feedback
+      toast.error(`Failed to delete ${contact.display_name}. Please try again.`, {
+        duration: 5000,
+        style: {
+          background: '#EF4444',
+          color: '#ffffff',
+          border: 'none',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)',
+        },
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setShowTooltip(false); // Hide tooltip after action
+    }
   };
 
   const handleNameSubmit = (e) => {
@@ -131,65 +216,137 @@ const ContactItem = memo(({ contact, onClick, isSelected }) => {
   };
 
   return (
-    <div
-      className={`p-4 rounded-lg mb-2 bg-card hover:bg-accent cursor-pointer transition-colors border border-border hover:border-primary/20 relative ${
-        isSelected ? 'bg-accent' : ''
-      }`}
-      onClick={onClick}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-    >
-      {showTooltip && (
-        <div className="absolute right-2 top-2 flex gap-2">
-          <Button
-            onClick={handleEdit}
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          >
-            <FiEdit3 size={20} />
-          </Button>
-          <Button
-            onClick={handleDelete}
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-          >
-            <BiSolidHide size={20} />
-          </Button>
-        </div>
-      )}
-      <div className="flex items-center gap-3">
-        <ContactAvatar contact={contact} />
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <Input
-              ref={editInputRef}
-              type="text"
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={handleNameSubmit}
-              className="bg-input text-foreground px-2 py-1 rounded w-full border border-border"
-              onClick={(e) => e.stopPropagation()}
-              autoFocus
-            />
-          ) : (
-            <>
-              <div className="flex items-center gap-2">
-                <div className="text-foreground font-medium truncate">{contact.display_name}</div>
-                {priority && <PriorityBadge priority={priority} />}
-              </div>
-              <div className="text-muted-foreground text-sm truncate">{contact.last_message}</div>
-            </>
-          )}
-        </div>
-        {!isEditing && contact.last_message_at && (
-          <div className="text-muted-foreground text-xs flex-shrink-0">
-            {format(new Date(contact.last_message_at), 'HH:mm')}
+    <>
+      <div
+        className={`p-4 rounded-lg mb-2 bg-card hover:bg-accent cursor-pointer transition-all duration-200 border border-border hover:border-primary/20 relative ${
+          isSelected ? 'bg-accent' : ''
+        } ${isDeleting ? 'opacity-50 pointer-events-none' : ''}`}
+        onClick={onClick}
+        onMouseEnter={() => !isDeleting && setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+      >
+        {showTooltip && !isDeleting && (
+          <div className="absolute right-2 top-2 flex gap-2 z-10">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleEdit}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-blue-100 dark:hover:bg-blue-900 transition-all duration-200"
+                  >
+                    <FiEdit3 size={16} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit contact name</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleDeleteClick}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900 transition-all duration-200"
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <BiSolidHide size={16} />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete contact</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
+        
+        <div className="flex items-center gap-3">
+          <ContactAvatar contact={contact} />
+          <div className="flex-1 min-w-0">
+            {isEditing ? (
+              <Input
+                ref={editInputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onKeyDown={handleNameSubmit}
+                className="bg-input text-foreground px-2 py-1 rounded w-full border border-border"
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+              />
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="text-foreground font-medium truncate">{contact.display_name}</div>
+                  {priority && <PriorityBadge priority={priority} />}
+                </div>
+                <div className="text-muted-foreground text-sm truncate">{contact.last_message}</div>
+              </>
+            )}
+          </div>
+          {!isEditing && contact.last_message_at && (
+            <div className="text-muted-foreground text-xs flex-shrink-0">
+              {format(new Date(contact.last_message_at), 'HH:mm')}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <BiSolidHide className="h-5 w-5 text-red-500" />
+              Delete Contact
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Are you sure you want to delete <span className="font-semibold">{contact.display_name}</span>?
+              </p>
+              <p className="text-sm text-muted-foreground">
+                This will permanently remove the contact and all associated data from both your device and our servers. This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isDeleting}
+              className="hover:bg-muted"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <BiSolidHide className="h-4 w-4 mr-2" />
+                  Delete Contact
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 });
 
@@ -243,13 +400,18 @@ const NoPlatformsConnected = () => {
   );
 };
 
-const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
-  const contacts = useSelector((state) => state.contacts.items);
+interface TelegramContactListProps {
+  onContactSelect: (contact: any) => void;
+  selectedContactId?: number;
+}
+
+const TelegramContactList = ({ onContactSelect, selectedContactId }: TelegramContactListProps) => {
+  const contacts = useSelector((state: RootState) => state.contacts.items);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const session = useSelector(state => state.auth.session);
-  const loading = useSelector((state) => state.contacts.loading);
-  const error = useSelector((state) => state.contacts.error);
+  const dispatch = useDispatch<AppDispatch>();
+  const session = useSelector((state: RootState) => state.auth.session);
+  const loading = useSelector((state: RootState) => state.contacts.loading);
+  const error = useSelector((state: RootState) => state.contacts.error);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastManualRefreshTime, setLastManualRefreshTime] = useState(0);
@@ -260,9 +422,13 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const [syncRequestId, setSyncRequestId] = useState(null);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
   const [refreshTooltip, setRefreshTooltip] = useState('');
-  const [refreshRequired, setRefreshRequired] = useState(true);
+  const [refreshRequired, setRefreshRequired] = useState(false);
   const refreshButtonRef = useRef(null);
   const syncStatusPollingRef = useRef(null);
+
+  // Platform verification state
+  const [isVerifyingPlatform, setIsVerifyingPlatform] = React.useState(false);
+  const [verificationMessage, setVerificationMessage] = React.useState('');
 
   const loadContactsWithRetry = useCallback(async (retryCount = 0) => {
     try {
@@ -330,7 +496,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
 
     const now = Date.now();
     if (now - lastManualRefreshTime < 3000) {
-      toast.info('Please wait a moment before refreshing again');
+      toast('Please wait a moment before refreshing again');
       return;
     }
 
@@ -344,7 +510,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         setRefreshCooldown(false);
         setIsRefreshing(false);
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync timed out, showing available contacts',
           progress: 100
         });
@@ -399,7 +565,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       } else {
         // Sync completed immediately
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync completed successfully',
           progress: 100
         });
@@ -424,7 +590,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
 
       toast.error('Sync encountered an issue: ' + errorMessage);
       setSyncProgress({
-        state: SYNC_STATES.ERROR,
+        state: SYNC_STATES.REJECTED,
         message: errorMessage,
         progress: 0
       });
@@ -485,7 +651,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed (timeout)',
             progress: 100
           });
@@ -515,7 +681,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
               clearInterval(pollInterval);
               setRefreshCooldown(false);
               setSyncProgress({
-                state: SYNC_STATES.COMPLETED,
+                state: SYNC_STATES.APPROVED,
                 message: 'Sync completed successfully',
                 progress: 100
               });
@@ -539,7 +705,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed successfully',
             progress: 100
           });
@@ -567,7 +733,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync completed (timeout)',
             progress: 100
           });
@@ -592,7 +758,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
           clearInterval(pollInterval);
           setRefreshCooldown(false);
           setSyncProgress({
-            state: SYNC_STATES.COMPLETED,
+            state: SYNC_STATES.APPROVED,
             message: 'Sync status unknown, showing available contacts',
             progress: 100
           });
@@ -614,7 +780,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         clearInterval(pollInterval);
         logger.info('[telegramContactList] Safety cleanup triggered for sync polling');
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync timed out',
           progress: 100
         });
@@ -622,7 +788,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       if (refreshCooldown) {
         setRefreshCooldown(false);
         setSyncProgress({
-          state: SYNC_STATES.COMPLETED,
+          state: SYNC_STATES.APPROVED,
           message: 'Sync status polling timed out',
           progress: 100
         });
@@ -633,7 +799,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
   const handleContactSelect = useCallback(async (contact) => {
     // Prevent contact selection if refresh is required
     if (refreshRequired) {
-      toast.info('Please refresh contacts first');
+      toast('Please refresh contacts first');
       return;
     }
     
@@ -773,7 +939,7 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
         const handleSyncError = (data) => {
           if (data.userId === session.user.id) {
             setSyncProgress({
-              state: SYNC_STATES.ERROR,
+              state: SYNC_STATES.REJECTED,
               message: data.error || 'Sync failed'
             });
             toast.error('Contact sync failed: ' + (data.error || 'Unknown error'));
@@ -833,10 +999,29 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
     const displayNameMap = new Map();
     return contacts.filter(contact => {
       const displayName = contact.display_name?.toLowerCase() || '';
-      const isBridgeBot = displayName === 'telegram bridge bot';
-      const isStatusBroadcast = displayName.includes('telegram status') ||
-                               displayName.includes('broadcast');
-      if (isBridgeBot || isStatusBroadcast) return false;
+      
+      // CRITICAL: Only show contacts with 'join' or 'invite' membership
+      const membership = contact.membership;
+      if (membership && membership !== 'join' && membership !== 'invite') {
+        return false; // Filter out 'leave', 'ban', etc.
+      }
+      
+      // Filter out any contact with 'bot' in the name
+      if (displayName.includes('bot')) return false;
+      
+      // Filter out bridge bots specifically (redundant but explicit)
+      if (displayName.includes('telegram bridge') || 
+          displayName === 'telegram bridge bot') return false;
+      
+      // Filter out status broadcasts
+      if (displayName.includes('telegram status') ||
+          displayName.includes('status broadcast') ||
+          displayName.includes('broadcast')) return false;
+
+      // CRITICAL: Filter out any WhatsApp-related contacts that might leak into Telegram list
+      if (displayName.includes('whatsapp') || 
+          displayName.includes('wa') ||
+          displayName.includes('(wa)')) return false;
 
       if (displayNameMap.has(displayName)) {
         const existing = displayNameMap.get(displayName);
@@ -860,11 +1045,12 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
     );
   }, [filteredContacts, searchQuery]);
 
+  // Check if the current platform is active and refresh if needed
   useEffect(() => {
     const checkAndRefreshIfActive = () => {
       const activePlatform = localStorage.getItem('dailyfix_active_platform');
       if (activePlatform === 'telegram') {
-        logger.info('[TelegramContactList] Telegram is the active platform, refreshing contacts');
+        logger.info('[telegramContactList] Telegram is the active platform, refreshing contacts');
         loadContactsWithRetry();
       }
     };
@@ -876,15 +1062,138 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       setRefreshRequired(true);
       checkAndRefreshIfActive();
     };
+
+    const handlePlatformSwitch = () => {
+      // Only set refresh required when platform is actually switched
+      const activePlatform = localStorage.getItem('dailyfix_active_platform');
+      if (activePlatform === 'telegram') {
+        logger.info('[TelegramContactList] Platform switched to Telegram, requiring refresh');
+        setRefreshRequired(true);
+      }
+    };
     
     window.addEventListener('platform-connection-changed', handlePlatformChange);
     window.addEventListener('refresh-platform-status', handlePlatformChange);
+    window.addEventListener('platform-switched', handlePlatformSwitch);
     
     return () => {
       window.removeEventListener('platform-connection-changed', handlePlatformChange);
       window.removeEventListener('refresh-platform-status', handlePlatformChange);
+      window.removeEventListener('platform-switched', handlePlatformSwitch);
     };
   }, [loadContactsWithRetry]);
+
+  // Listen for platform connection changes to refresh contacts
+  useEffect(() => {
+    const handlePlatformConnectionChange = () => {
+      if (session?.user?.id) {
+        logger.info('[TelegramContactList] Platform connection changed, refreshing contacts');
+        // Small delay to ensure connection status is updated
+        setTimeout(() => {
+          dispatch(fetchContacts({
+            userId: session.user.id,
+            platform: 'telegram'
+          }));
+        }, 500);
+      }
+    };
+
+    const handleForceRefresh = (event: CustomEvent) => {
+      if (session?.user?.id) {
+        logger.info('[TelegramContactList] Force refresh requested from platform switcher');
+        // Force refresh contacts immediately
+        dispatch(freshSyncContacts({
+          userId: session.user.id,
+          platform: 'telegram'
+        }));
+      }
+    };
+
+    window.addEventListener('platform-connection-changed', handlePlatformConnectionChange);
+    window.addEventListener('force-refresh-contacts', handleForceRefresh as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-connection-changed', handlePlatformConnectionChange);
+      window.removeEventListener('force-refresh-contacts', handleForceRefresh as EventListener);
+    };
+  }, [session?.user?.id, dispatch]);
+
+  // Listen for platform verification events
+  useEffect(() => {
+    const handlePlatformVerificationStart = (event: CustomEvent) => {
+      if (event.detail?.platform === 'telegram') {
+        setIsVerifyingPlatform(true);
+        setVerificationMessage('Verifying Telegram connection...');
+      }
+    };
+
+    const handlePlatformVerificationEnd = (event: CustomEvent) => {
+      if (event.detail?.platform === 'telegram') {
+        setIsVerifyingPlatform(false);
+        setVerificationMessage('');
+      }
+    };
+
+    // Handle contact auto-deletion events from backend
+    const handleContactAutoDeleted = (event: CustomEvent) => {
+      const { contactId, platform, message, reason } = event.detail;
+      
+      if (platform === 'telegram') {
+        logger.info('[TelegramContactList] Contact auto-deleted by backend:', {
+          contactId,
+          reason,
+          message
+        });
+        
+        // Remove from Redux state
+        dispatch(hideContact(contactId));
+        
+        // Show informative toast
+        toast.success(message || 'Contact has been automatically removed', {
+          duration: 6000,
+          style: {
+            background: '#3B82F6',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+          },
+        });
+      }
+    };
+
+    window.addEventListener('platform-verification-start', handlePlatformVerificationStart as EventListener);
+    window.addEventListener('platform-verification-end', handlePlatformVerificationEnd as EventListener);
+    window.addEventListener('contact-auto-deleted', handleContactAutoDeleted as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-verification-start', handlePlatformVerificationStart as EventListener);
+      window.removeEventListener('platform-verification-end', handlePlatformVerificationEnd as EventListener);
+      window.removeEventListener('contact-auto-deleted', handleContactAutoDeleted as EventListener);
+    };
+  }, [dispatch]);
+
+  // Show verification overlay during platform switching
+  if (isVerifyingPlatform) {
+    return (
+      <div className="flex-1 overflow-hidden bg-background">
+        <div className="flex items-center justify-center h-full p-8">
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+            <div>
+              <h3 className="text-lg font-medium">Platform Verification</h3>
+              <p className="text-muted-foreground">{verificationMessage}</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Please wait while we verify your Telegram connection...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="flex flex-col h-full w-full border-none shadow-none rounded-lg bg-background relative">
@@ -901,7 +1210,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
             )}
             <div className="flex flex-col">
               <Button
-                ref={refreshButtonRef}
                 onClick={handleRefresh}
                 disabled={loading || isRefreshing}
                 variant="ghost"
@@ -1028,36 +1336,6 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }) => {
       </CardContent>
     </Card>
   );
-};
-
-ContactItem.propTypes = {
-  contact: PropTypes.shape({
-    id: PropTypes.number.isRequired,
-    telegram_id: PropTypes.string.isRequired,
-    display_name: PropTypes.string.isRequired,
-    // profile_photo_url: PropTypes.string,
-    is_group: PropTypes.bool,
-    last_message: PropTypes.string,
-    // unread_count: PropTypes.number,
-    sync_status: PropTypes.string,
-    membership: PropTypes.string,
-    // last_sync_at: PropTypes.string,
-    // bridge_room_id: PropTypes.string,
-    // metadata: PropTypes.shape({
-    //   membership: PropTypes.string,
-    //   room_id: PropTypes.string,
-    //   member_count: PropTypes.number,
-    //   // last_sync_check: PropTypes.string,
-    //   // bridge_bot_status: PropTypes.string
-    // })
-  }).isRequired,
-  isSelected: PropTypes.bool.isRequired,
-  onClick: PropTypes.func.isRequired
-};
-
-TelegramContactList.propTypes = {
-  onContactSelect: PropTypes.func.isRequired,
-  selectedContactId: PropTypes.number
 };
 
 export default TelegramContactList;
