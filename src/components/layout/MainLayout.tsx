@@ -33,6 +33,7 @@ import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStor
 import { toast } from 'react-hot-toast'
 import logger from '@/utils/logger'
 import { useMousePosition } from '@/hooks/useMousePosition'
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 
 // Define interface for contact objects
 interface Contact {
@@ -452,73 +453,177 @@ export default function Page() {
           )}
           <Separator orientation="vertical" className="mr-2 h-4" />
           
-          {/* View Toggle Buttons */}
-          {!settingsOpen && !selectedContact && (
-            <div className="flex items-center space-x-2 mr-4">
-              <Button
-                variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => handleViewToggle('dashboard')}
-                className="text-header-foreground"
-              >
-                <LayoutDashboard className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-              <Button
-                variant={currentView === 'inbox' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => handleViewToggle('inbox')}
-                className="text-header-foreground"
-              >
-                <Inbox className="h-4 w-4 mr-2" />
-                Inbox
-              </Button>
-            </div>
-          )}
-          
-          <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
-            {renderHeaderTitle()}
-          </div>
-          
-          {settingsOpen ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSettingsOpen(false)}
-              className="ml-auto text-header-foreground hover:bg-accent"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-4 w-4"
-              >
-                <path d="M18 6 6 18" />
-                <path d="m6 6 12 12" />
-              </svg>
-              <span className="sr-only">Close</span>
-            </Button>
+          {/* Mobile Header Layout */}
+          {isMobile ? (
+            <>
+              {/* Mobile: Show condensed title and menu button */}
+              <div className="flex-1 ml-2 text-base font-medium text-header-foreground truncate">
+                {renderHeaderTitle()}
+              </div>
+              
+              {/* Mobile: Dropdown menu for actions */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-header-foreground hover:bg-accent flex-shrink-0"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-5 w-5"
+                    >
+                      <circle cx="12" cy="12" r="1" />
+                      <circle cx="12" cy="5" r="1" />
+                      <circle cx="12" cy="19" r="1" />
+                    </svg>
+                    <span className="sr-only">Menu</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-48">
+                  <div className="space-y-2">
+                    {!settingsOpen && !selectedContact && (
+                      <>
+                        <Button
+                          variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => handleViewToggle('dashboard')}
+                          className="w-full justify-start"
+                        >
+                          <LayoutDashboard className="h-4 w-4 mr-2" />
+                          Dashboard
+                        </Button>
+                        <Button
+                          variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => handleViewToggle('inbox')}
+                          className="w-full justify-start"
+                        >
+                          <Inbox className="h-4 w-4 mr-2" />
+                          Inbox
+                        </Button>
+                        <Separator className="my-2" />
+                      </>
+                    )}
+                    {settingsOpen ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSettingsOpen(false)}
+                        className="w-full justify-start"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-4 w-4 mr-2"
+                        >
+                          <path d="M18 6 6 18" />
+                          <path d="m6 6 12 12" />
+                        </svg>
+                        Close Settings
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSettingsOpen(true)}
+                        className="w-full justify-start"
+                      >
+                        <SettingsIcon className="h-4 w-4 mr-2" />
+                        Settings
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </>
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSettingsOpen(true)}
-              className="ml-auto text-header-foreground hover:bg-accent"
-            >
-              <SettingsIcon className="h-5 w-5" />
-              <span className="sr-only">Settings</span>
-            </Button>
+            <>
+              {/* Desktop Header Layout */}
+              {/* View Toggle Buttons */}
+              {!settingsOpen && !selectedContact && (
+                <div className="flex items-center space-x-2 mr-4">
+                  <Button
+                    variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleViewToggle('dashboard')}
+                    className="text-header-foreground"
+                  >
+                    <LayoutDashboard className="h-4 w-4 mr-2" />
+                    Dashboard
+                  </Button>
+                  <Button
+                    variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleViewToggle('inbox')}
+                    className="text-header-foreground"
+                  >
+                    <Inbox className="h-4 w-4 mr-2" />
+                    Inbox
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
+                {renderHeaderTitle()}
+              </div>
+              
+              {settingsOpen ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSettingsOpen(false)}
+                  className="ml-auto text-header-foreground hover:bg-accent"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-4 w-4"
+                  >
+                    <path d="M18 6 6 18" />
+                    <path d="m6 6 12 12" />
+                  </svg>
+                  <span className="sr-only">Close</span>
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSettingsOpen(true)}
+                  className="ml-auto text-header-foreground hover:bg-accent"
+                >
+                  <SettingsIcon className="h-5 w-5" />
+                  <span className="sr-only">Settings</span>
+                </Button>
+              )}
+            </>
           )}
         </header>
 
         {/* Main Content */}
-        <div className="flex flex-1 h-full bg-background ml-6" ref={contentRef}>
+        <div className={`flex flex-1 h-full bg-background ${isMobile ? 'ml-0' : 'ml-6'}`} ref={contentRef}>
           {/* Dashboard View */}
           {currentView === 'dashboard' && !settingsOpen && (
             <Dashboard />

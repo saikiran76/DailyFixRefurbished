@@ -331,7 +331,7 @@ const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) =>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
+          <AlertDialogHeader className="">
             <AlertDialogTitle className="flex items-center gap-2">
               <BiSolidHide className="h-5 w-5 text-red-500" />
               Delete Contact
@@ -345,7 +345,7 @@ const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) =>
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          <AlertDialogFooter className="">
             <AlertDialogCancel 
               disabled={isDeleting}
               className="hover:bg-muted"

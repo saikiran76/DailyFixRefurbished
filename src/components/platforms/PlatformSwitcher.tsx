@@ -115,10 +115,10 @@ export const PlatformSwitcher = ({
       toast.error('Failed to refresh platform status');
       
       // Fallback to the old event-based refresh
-      const refreshEvent = new CustomEvent('refresh-platform-status');
-      window.dispatchEvent(refreshEvent);
+    const refreshEvent = new CustomEvent('refresh-platform-status');
+    window.dispatchEvent(refreshEvent);
     } finally {
-      setTimeout(() => setIsRefreshing(false), 2000);
+    setTimeout(() => setIsRefreshing(false), 2000);
     }
   };
 
@@ -226,20 +226,20 @@ export const PlatformSwitcher = ({
         updateSwitchingProgress('switching', 50, 'Updating platform settings...');
         await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
 
-        localStorage.setItem('dailyfix_active_platform', platformId);
-        logger.info(`[PlatformSwitcher] Set ${platformId} as active platform in localStorage`);
+      localStorage.setItem('dailyfix_active_platform', platformId);
+      logger.info(`[PlatformSwitcher] Set ${platformId} as active platform in localStorage`);
         
         // Step 3: Dispatch events and refresh contacts
         updateSwitchingProgress('refreshing', 75, 'Refreshing contact list...');
         await new Promise(resolve => setTimeout(resolve, 500)); // Brief delay for UX
-        
-        // Use setTimeout to ensure this runs after all synchronous code,
-        // preventing potential initialization order issues
-        setTimeout(() => {
-          try {
-            // Trigger proper contact refresh based on the platform
-            const userId = JSON.parse(localStorage.getItem('dailyfix_auth') || '{}')?.user?.id;
-            if (userId) {
+      
+      // Use setTimeout to ensure this runs after all synchronous code,
+      // preventing potential initialization order issues
+      setTimeout(() => {
+        try {
+          // Trigger proper contact refresh based on the platform
+          const userId = JSON.parse(localStorage.getItem('dailyfix_auth') || '{}')?.user?.id;
+          if (userId) {
               // Dispatch a verified platform change event
               window.dispatchEvent(new CustomEvent('platform-connection-changed', {
                 detail: {
@@ -250,13 +250,13 @@ export const PlatformSwitcher = ({
                 }
               }));
               
-              logger.info(`[PlatformSwitcher] Auto-refreshed contacts after switching to ${platformId}`);
-            }
-          } catch (error) {
-            logger.error('[PlatformSwitcher] Error during platform switch event dispatching:', error);
+            logger.info(`[PlatformSwitcher] Auto-refreshed contacts after switching to ${platformId}`);
           }
-        }, 0);
-        
+        } catch (error) {
+          logger.error('[PlatformSwitcher] Error during platform switch event dispatching:', error);
+        }
+      }, 0);
+      
         // Step 4: Complete the switch
         updateSwitchingProgress('completed', 100, `Successfully switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
         
@@ -290,8 +290,8 @@ export const PlatformSwitcher = ({
       }
     } else {
       // Same platform clicked, just close
-      onPlatformChange(platformId);
-      setIsOpen(false);
+    onPlatformChange(platformId);
+    setIsOpen(false);
     }
   };
 
@@ -496,7 +496,7 @@ export const PlatformSwitcher = ({
                         {isCurrentlySwitching ? (
                           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
                         ) : (
-                          <Icon className={`h-4 w-4 ${platform.color}`} />
+                        <Icon className={`h-4 w-4 ${platform.color}`} />
                         )}
                       </span>
                       <span>{platform.title}</span>

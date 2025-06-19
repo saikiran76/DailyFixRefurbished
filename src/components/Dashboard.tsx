@@ -1218,11 +1218,11 @@ const Dashboard = () => {
 
   return (
     <div className="flex-1 h-full overflow-y-auto">
-      <div className="space-y-8 p-8 pb-16 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground text-lg">
+      <div className="space-y-4 md:space-y-8 p-4 md:p-8 pb-8 md:pb-16 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1 md:space-y-2">
+            <h1 className="text-xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground text-sm md:text-lg">
               Real-time overview of your messaging platforms and activity
             </p>
             {analyticsData.lastUpdated && (
@@ -1234,7 +1234,7 @@ const Dashboard = () => {
           <Button 
             onClick={handleRefresh} 
             variant="outline"
-            className="gap-2"
+            className="gap-2 w-full md:w-auto"
             disabled={analyticsData.isLoading || contactsState.isLoading}
           >
             {(analyticsData.isLoading || contactsState.isLoading) ? (
@@ -1247,9 +1247,9 @@ const Dashboard = () => {
         </div>
         
         {/* Platform Statistics Cards */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Platform Statistics</h2>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="space-y-3 md:space-y-4">
+          <h2 className="text-lg md:text-xl font-semibold">Platform Statistics</h2>
+          <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3 xl:grid-cols-4">
             <div className="lg:col-span-2 xl:col-span-3">
               <PlatformStatsCards analyticsData={analyticsData} />
             </div>
@@ -1260,15 +1260,15 @@ const Dashboard = () => {
         </div>
         
         {/* Platform Overview */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Platform Overview</h2>
+        <div className="space-y-3 md:space-y-4">
+          <h2 className="text-lg md:text-xl font-semibold">Platform Overview</h2>
           <PlatformOverview analyticsData={analyticsData} />
         </div>
         
         {/* Active Contacts and Daily Notes */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Activity & Insights</h2>
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="space-y-3 md:space-y-4">
+          <h2 className="text-lg md:text-xl font-semibold">Activity & Insights</h2>
+          <div className="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
             <ActiveContactsList contactsState={contactsState} />
             <DailyNotesSection contactsState={contactsState} />
           </div>

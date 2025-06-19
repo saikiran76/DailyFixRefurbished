@@ -55,12 +55,12 @@ const PlatformItem = ({
   return (
     <div className="flex items-center justify-between px-4 py-6">
       <div className="flex items-center gap-4">
-        <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-white">
+        <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-muted text-foreground">
           {logo}
         </div>
         <div>
-          <h3 className="text-base font-medium">{title}</h3>
-          <p className="text-sm text-gray-400">{subtitle}</p>
+          <h3 className="text-base font-medium text-foreground">{title}</h3>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
         </div>
       </div>
       <div className="flex items-center gap-3">
@@ -77,7 +77,7 @@ const PlatformItem = ({
           <Loader2 className="h-4 w-4 text-red-500 animate-spin mr-2" />
         )}
         {disabled && !isInitializing && !isDisconnecting && (
-          <span className="text-sm text-gray-400 mr-2">Setup in progress</span>
+          <span className="text-sm text-muted-foreground mr-2">Setup in progress</span>
         )}
         <Checkbox 
           id={`toggle-${platform}`}
@@ -334,7 +334,7 @@ const PlatformSettings = () => {
   const anySetupInProgress = initializingPlatform !== null || showWhatsAppSetup || showTelegramSetup || isDisconnecting || showDisconnectDialog;
 
   return (
-    <div className=" bg-[#131516] space-y-6">
+    <div className="bg-background text-foreground space-y-6">
       <Tabs defaultValue="accounts" className="w-full">
         <TabsList className="grid grid-cols-3 mb-6">
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
@@ -343,8 +343,8 @@ const PlatformSettings = () => {
         </TabsList>
         
         <TabsContent value="accounts">
-          <div className="flex justify-between items-center mb-6 ">
-            <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200">ACCOUNTS</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold uppercase tracking-wide text-foreground">ACCOUNTS</h2>
             <Button 
               variant="ghost" 
               size="sm" 
@@ -357,7 +357,7 @@ const PlatformSettings = () => {
             </Button>
           </div>
           
-          <div className="rounded-lg overflow-hidden bg-black/50 whatsapp-glowing-border">
+          <div className="rounded-lg overflow-hidden bg-card border border-border whatsapp-glowing-border">
             {availablePlatforms.map(platform => {
               const meta = platformMeta[platform as keyof typeof platformMeta];
               const isConnected = activePlatforms.includes(platform);
@@ -380,7 +380,7 @@ const PlatformSettings = () => {
             })}
           </div>
           
-          <div className="text-sm text-gray-400 mt-4">
+          <div className="text-sm text-muted-foreground mt-4">
             <p>Connect your messaging platforms to manage all your conversations in one place.</p>
             <p className="mt-2">Platforms may require additional authentication steps to connect.</p>
           </div>
@@ -409,10 +409,10 @@ const PlatformSettings = () => {
           
           {/* Disconnect Confirmation Dialog */}
           <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
-            <AlertDialogContent className="bg-black text-white border border-gray-800">
+            <AlertDialogContent className="bg-background text-foreground border border-border">
               <AlertDialogHeader>
                 <AlertDialogTitle>Disconnect {disconnectingPlatform?.charAt(0).toUpperCase() + disconnectingPlatform?.slice(1)}</AlertDialogTitle>
-                <AlertDialogDescription className="text-gray-400">
+                <AlertDialogDescription className="text-muted-foreground">
                   Are you sure you want to disconnect this platform? You'll need to reconnect to access your conversations again.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -439,19 +439,19 @@ const PlatformSettings = () => {
         
         <TabsContent value="appearance">
           <div className="mb-6">
-            <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200 mb-6">APPEARANCE</h2>
+            <h2 className="text-xl font-bold uppercase tracking-wide text-foreground mb-6">APPEARANCE</h2>
             
-            <div className="rounded-lg  overflow-hidden bg-black/50 mb-6 whatsapp-glowing-border">
+            <div className="rounded-lg  overflow-hidden bg-card mb-6 whatsapp-glowing-border">
               {/* Theme Settings */}
-              <div className="border-b border-gray-800">
+              <div className="border-b border-border">
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-white">
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-muted text-foreground">
                       <Images className="h-5 w-5" />
                     </div>
                     <div className="ml-4">
                       <h3 className="text-base font-medium">Theme</h3>
-                      <p className="text-sm text-gray-400">Switch between light, dark and system theme</p>
+                      <p className="text-sm text-muted-foreground">Switch between light, dark and system theme</p>
                     </div>
                   </div>
                   <div className="ml-4">
@@ -461,15 +461,15 @@ const PlatformSettings = () => {
               </div>
               
               {/* WhatsApp Chat Background */}
-              <div className="border-b border-gray-800">
+              <div className="border-b border-border">
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-green-500">
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-muted text-green-500">
                       <Images className="h-5 w-5" />
                     </div>
                     <div className="ml-4">
                       <h3 className="text-base font-medium">WhatsApp Chat Background</h3>
-                      <p className="text-sm text-gray-400">Customize the background of your WhatsApp chats</p>
+                      <p className="text-sm text-muted-foreground">Customize the background of your WhatsApp chats</p>
                     </div>
                   </div>
                   <Button 
@@ -487,12 +487,12 @@ const PlatformSettings = () => {
               <div>
                 <div className="flex items-center justify-between p-4">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-gray-800 text-blue-500">
+                    <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-muted text-blue-500">
                       <Images className="h-5 w-5" />
                     </div>
                     <div className="ml-4">
                       <h3 className="text-base font-medium">Telegram Chat Background</h3>
-                      <p className="text-sm text-gray-400">Customize the background of your Telegram chats</p>
+                      <p className="text-sm text-muted-foreground">Customize the background of your Telegram chats</p>
                     </div>
                   </div>
                   <Button 
@@ -507,7 +507,7 @@ const PlatformSettings = () => {
               </div>
             </div>
             
-            <div className="text-sm text-gray-400 mt-4">
+            <div className="text-sm text-muted-foreground mt-4">
               <p>Customize the appearance of your chat platforms to make them your own.</p>
               <p className="mt-2">You can upload your own images or choose from our selection of backgrounds.</p>
             </div>
@@ -516,11 +516,11 @@ const PlatformSettings = () => {
         
         <TabsContent value="help">
           <div className="mb-6">
-            <h2 className="text-xl font-bold uppercase tracking-wide text-gray-200 mb-6">HELP & TUTORIAL</h2>
+            <h2 className="text-xl font-bold uppercase tracking-wide text-foreground mb-6">HELP & TUTORIAL</h2>
             
             <div className="space-y-6">
               {/* Welcome Section */}
-              <Card className="bg-black/50 whatsapp-glowing-border overflow-hidden">
+              <Card className="bg-card whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <BookOpen className="mr-2 h-5 w-5 text-blue-500" />
@@ -531,7 +531,7 @@ const PlatformSettings = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-gray-300">
+                  <p className="text-muted-foreground">
                     DailyFix brings together your communication channels into one streamlined interface, 
                     allowing you to manage all your conversations efficiently.
                   </p>
@@ -546,32 +546,32 @@ const PlatformSettings = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-white flex items-center">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-900 flex items-center justify-center mr-2">1</span>
+                    <h3 className="text-sm font-medium text-foreground flex items-center">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center mr-2 text-white text-xs">1</span>
                       Connect Your Accounts
                     </h3>
-                    <p className="text-gray-400 text-sm ml-8">
+                    <p className="text-muted-foreground text-sm ml-8">
                       Go to the Accounts tab and connect your WhatsApp and Telegram accounts.
                       Follow the authentication steps to link your accounts securely.
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-white flex items-center">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-900 flex items-center justify-center mr-2">2</span>
+                    <h3 className="text-sm font-medium text-foreground flex items-center">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center mr-2 text-white text-xs">2</span>
                       Customize Your Experience
                     </h3>
-                    <p className="text-gray-400 text-sm ml-8">
+                    <p className="text-muted-foreground text-sm ml-8">
                       Visit the Appearance tab to customize your chat backgrounds and make the app feel more personal.
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-white flex items-center">
-                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-900 flex items-center justify-center mr-2">3</span>
+                    <h3 className="text-sm font-medium text-foreground flex items-center">
+                      <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center mr-2 text-white text-xs">3</span>
                       Start Chatting
                     </h3>
-                    <p className="text-gray-400 text-sm ml-8">
+                    <p className="text-muted-foreground text-sm ml-8">
                       Once your accounts are connected, you'll see all your contacts in the sidebar. Click on any contact to start chatting.
                     </p>
                   </div>
@@ -586,30 +586,30 @@ const PlatformSettings = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-3 rounded-lg border border-gray-800 bg-black/30">
+                    <div className="p-3 rounded-lg border border-border bg-muted/30">
                       <h3 className="font-medium text-blue-400 mb-2">Unified Messaging</h3>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         Manage all your WhatsApp and Telegram conversations in a single interface.
                       </p>
                     </div>
                     
-                    <div className="p-3 rounded-lg border border-gray-800 bg-black/30">
+                    <div className="p-3 rounded-lg border border-border bg-muted/30">
                       <h3 className="font-medium text-green-400 mb-2">Custom Chat Backgrounds</h3>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         Personalize your chat experience with custom backgrounds for each platform.
                       </p>
                     </div>
                     
-                    <div className="p-3 rounded-lg border border-gray-800 bg-black/30">
+                    <div className="p-3 rounded-lg border border-border bg-muted/30">
                       <h3 className="font-medium text-purple-400 mb-2">AI-Powered Chat Summary</h3>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         Use the AI button in chat to generate summaries of your conversations.
                       </p>
                     </div>
                     
-                    <div className="p-3 rounded-lg border border-gray-800 bg-black/30">
+                    <div className="p-3 rounded-lg border border-border bg-muted/30">
                       <h3 className="font-medium text-yellow-400 mb-2">Priority Management</h3>
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         Set priorities for contacts to help manage your most important conversations.
                       </p>
                     </div>
@@ -624,7 +624,7 @@ const PlatformSettings = () => {
                   <CardDescription>Become a power user with these handy tips</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-2 text-sm text-gray-300">
+                  <ul className="space-y-2 text-sm text-foreground">
                     <li className="flex items-start">
                       <span className="text-blue-500 mr-2">•</span>
                       <span>Use the refresh button in chat to get the latest messages</span>
@@ -650,13 +650,13 @@ const PlatformSettings = () => {
               </Card>
               
               {/* Help & Support Section */}
-              <Card className="bg-black/50 whatsapp-glowing-border overflow-hidden">
+              <Card className="bg-card whatsapp-glowing-border overflow-hidden">
                 <CardHeader>
                   <CardTitle>Help & Support</CardTitle>
                   <CardDescription>Need assistance? We're here to help</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-gray-300">
+                  <p className="text-muted-foreground">
                     If you're experiencing any issues or have questions about DailyFix, please don't hesitate to reach out to our support team.
                   </p>
                   <Button variant="outline" className="w-full">

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from 'react-hot-toast';
 
 // Import background images
@@ -81,6 +82,84 @@ interface ChatBackgroundSettingsProps {
   onClose: () => void;
   platform: Platform;
 }
+
+// Background Image Card Component with loading state
+const BackgroundImageCard = ({ 
+  bg, 
+  isSelected, 
+  onSelect, 
+  onRemove = null 
+}: {
+  bg: { id: string, src: string, alt: string };
+  isSelected: boolean;
+  onSelect: () => void;
+  onRemove?: (() => void) | null;
+}) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    setHasError(false);
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setHasError(true);
+  };
+
+  return (
+    <div className={onRemove ? "relative group" : "relative"}>
+      <div 
+        className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+          isSelected ? 'border-blue-500 scale-95' : 'border-transparent hover:border-gray-400'
+        }`}
+        onClick={onSelect}
+      >
+        {isLoading && (
+          <div className="w-full h-32">
+            <Skeleton className="w-full h-full rounded-lg" />
+          </div>
+        )}
+        
+        {hasError && (
+          <div className="w-full h-32 bg-muted flex items-center justify-center">
+            <span className="text-muted-foreground text-sm">Failed to load</span>
+          </div>
+        )}
+        
+        <img 
+          src={bg.src} 
+          alt={bg.alt} 
+          className={`w-full h-32 object-cover transition-opacity duration-300 ${
+            isLoading ? 'opacity-0 absolute' : 'opacity-100'
+          }`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          loading="lazy"
+        />
+        
+        {isSelected && !isLoading && (
+          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      {onRemove && (
+        <button
+          onClick={onRemove}
+          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Remove background"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      )}
+    </div>
+  );
+};
 
 const ChatBackgroundSettings: React.FC<ChatBackgroundSettingsProps> = ({ isOpen, onClose, platform }) => {
   // State for selected background
@@ -190,26 +269,12 @@ const ChatBackgroundSettings: React.FC<ChatBackgroundSettingsProps> = ({ isOpen,
           <TabsContent value="default" className="h-[400px] overflow-y-auto">
             <div className="grid grid-cols-3 gap-4">
               {defaultBackgrounds.map((bg) => (
-                <div 
+                <BackgroundImageCard 
                   key={bg.id}
-                  className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                    selectedBackground === bg.src ? 'border-blue-500 scale-95' : 'border-transparent hover:border-gray-400'
-                  }`}
-                  onClick={() => handleSelectBackground(bg.src)}
-                >
-                  <img 
-                    src={bg.src} 
-                    alt={bg.alt} 
-                    className="w-full h-32 object-cover"
-                  />
-                  {selectedBackground === bg.src && (
-                    <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                      <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  bg={bg}
+                  isSelected={selectedBackground === bg.src}
+                  onSelect={() => handleSelectBackground(bg.src)}
+                />
               ))}
             </div>
           </TabsContent>
@@ -237,37 +302,13 @@ const ChatBackgroundSettings: React.FC<ChatBackgroundSettingsProps> = ({ isOpen,
             {userBackgrounds.length > 0 ? (
               <div className="grid grid-cols-3 gap-4">
                 {userBackgrounds.map((bg) => (
-                  <div 
+                  <BackgroundImageCard 
                     key={bg.id}
-                    className="relative group"
-                  >
-                    <div 
-                      className={`cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                        selectedBackground === bg.src ? 'border-blue-500 scale-95' : 'border-transparent hover:border-gray-400'
-                      }`}
-                      onClick={() => handleSelectBackground(bg.src)}
-                    >
-                      <img 
-                        src={bg.src} 
-                        alt={bg.alt} 
-                        className="w-full h-32 object-cover"
-                      />
-                      {selectedBackground === bg.src && (
-                        <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                          <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleRemoveUserBackground(bg.id)}
-                      className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove background"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                    </button>
-                  </div>
+                    bg={bg}
+                    isSelected={selectedBackground === bg.src}
+                    onSelect={() => handleSelectBackground(bg.src)}
+                    onRemove={() => handleRemoveUserBackground(bg.id)}
+                  />
                 ))}
               </div>
             ) : (
