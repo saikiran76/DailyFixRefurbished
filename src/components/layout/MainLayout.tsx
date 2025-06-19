@@ -4,6 +4,7 @@ import '@/components/styles/shine-border.css'
 import '@/components/styles/glowing-border.css'
 import '@/components/styles/glowing-platform-icons.css'
 import { useSelector, useDispatch } from "react-redux"
+import { useNavigate, useLocation } from "react-router-dom"
 import { AppSidebar } from "@/components/ui/app-sidebar"
 // import {
 //   Breadcrumb,
@@ -47,6 +48,8 @@ interface Contact {
 }
 
 export default function Page() {
+  const navigate = useNavigate()
+  const location = useLocation()
   // State to track current view (dashboard or inbox)
   const [currentView, setCurrentView] = useState<'dashboard' | 'inbox'>('dashboard')
   // State to track if content below header is visible
@@ -393,6 +396,27 @@ export default function Page() {
     );
   };
 
+  // Handle settings navigation - Fix for issue B
+  const handleSettingsClick = () => {
+    if (window.location.pathname === '/settings') {
+      // If already on settings page, toggle the settings open state
+      setSettingsOpen(!settingsOpen)
+    } else {
+      // Navigate to settings route
+      navigate('/settings')
+      setSettingsOpen(true)
+    }
+  }
+
+  // Handle URL-based settings state - Fix for issue B
+  useEffect(() => {
+    if (location.pathname === '/settings') {
+      setSettingsOpen(true)
+    } else {
+      setSettingsOpen(false)
+    }
+  }, [location.pathname])
+
   return (
     <SidebarProvider 
       className="h-screen"
@@ -405,8 +429,8 @@ export default function Page() {
         onWhatsAppSelected={handleWhatsAppSelected}
         onTelegramSelected={handleTelegramSelected}
         onPlatformSelect={handlePlatformSelect}
-        onSettingsSelected={() => setSettingsOpen(true)}
-        onPlatformConnect={() => setSettingsOpen(true)}
+        onSettingsSelected={handleSettingsClick}
+        onPlatformConnect={handleSettingsClick}
       />
       <SidebarInset className="">
         {/* Header */}

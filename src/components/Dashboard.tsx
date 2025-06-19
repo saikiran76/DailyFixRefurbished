@@ -49,6 +49,7 @@ import {
 import { usePlatformConnection } from '@/hooks/usePlatformConnection';
 import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 import api from '@/utils/api';
+import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage';
 // Import Redux contact slice actions and selectors
 import { 
   fetchContacts, 
@@ -298,34 +299,59 @@ const useReduxContacts = () => {
   const error = useSelector(selectContactsError);
   const initialLoadComplete = useSelector(selectInitialLoadComplete);
 
-  // Helper function to filter out bot contacts
-  const isNotBotContact = (contact: any) => {
-    const displayName = (contact.display_name || contact.name || '').toLowerCase();
-    
-    // Filter out any contact with 'bot' in the name
-    if (displayName.includes('bot')) return false;
-    
-    // Filter out bridge bots specifically
-    if (displayName.includes('whatsapp bridge') || 
-        displayName.includes('telegram bridge') ||
-        displayName === 'whatsapp bridge bot' ||
-        displayName === 'telegram bridge bot') return false;
-    
-    // Filter out status broadcasts
-    if (displayName.includes('status') || 
-        displayName.includes('broadcast')) return false;
-    
-    return true;
+  // FIXED: Add contact caching mechanism - Part of issue D fix
+  const [lastFetchTime, setLastFetchTime] = useState<Record<string, number>>({});
+  const FETCH_COOLDOWN = 30 * 1000; // 30 seconds cooldown between fetches
+
+  const canFetch = (platform: string): boolean => {
+    const lastFetch = lastFetchTime[platform] || 0;
+    const now = Date.now();
+    return (now - lastFetch) > FETCH_COOLDOWN;
   };
 
-  // Separate contacts by platform with bot filtering
+  const updateFetchTime = (platform: string) => {
+    setLastFetchTime(prev => ({
+      ...prev,
+      [platform]: Date.now()
+    }));
+  };
+
+  // Helper function to filter out bot contacts
+  const isNotBotContact = (contact: any): boolean => {
+    const displayName = (contact.display_name || '').toLowerCase();
+    return !displayName.includes('bot') && 
+           !displayName.includes('bridge') && 
+           !displayName.includes('status') &&
+           !displayName.includes('broadcast');
+  };
+
+  // Memoized WhatsApp contacts
   const whatsappContacts = useMemo(() => {
-    return allContacts.filter((contact: any) => 
-      (contact.platform === 'whatsapp' || 
-       contact.whatsapp_id || 
-       (!contact.platform && !contact.telegram_id)) && // Fallback for contacts without explicit platform
-      isNotBotContact(contact) // Filter out bots
-    ).map((contact: any) => ({
+    const rawWhatsAppContacts = allContacts.filter((contact: any) => 
+      contact.platform === 'whatsapp' || 
+      contact.whatsapp_id
+    );
+    
+    const filteredWhatsAppContacts = rawWhatsAppContacts.filter(contact => 
+      isNotBotContact(contact)
+    );
+    
+    console.log('[Dashboard] WhatsApp contacts filtering:', {
+      rawCount: rawWhatsAppContacts.length,
+      filteredCount: filteredWhatsAppContacts.length,
+      rawContacts: rawWhatsAppContacts.map(c => ({ 
+        id: c.id, 
+        name: c.display_name || c.name, 
+        platform: c.platform,
+        whatsapp_id: c.whatsapp_id 
+      })),
+      filteredContacts: filteredWhatsAppContacts.map(c => ({ 
+        id: c.id, 
+        name: c.display_name || c.name 
+      }))
+    });
+    
+    return filteredWhatsAppContacts.map((contact: any) => ({
       id: contact.id,
       display_name: contact.display_name || contact.name || 'Unknown Contact',
       avatar_url: contact.avatar_url,
@@ -372,26 +398,36 @@ const useReduxContacts = () => {
     }));
   }, [allContacts]);
 
-  // Fetch contacts for active platforms - FORCE FETCH
+  // Fetch contacts for active platforms with caching
   const fetchContactsForPlatform = (platform: 'whatsapp' | 'telegram') => {
     if (!currentUser?.id) return;
     
-    console.log(`[Dashboard] Force fetching ${platform} contacts for user:`, currentUser.id);
+    if (!canFetch(platform)) {
+      console.log(`[Dashboard] Skipping ${platform} fetch due to cooldown`);
+      return;
+    }
+    
+    console.log(`[Dashboard] Fetching ${platform} contacts for user:`, currentUser.id);
+    updateFetchTime(platform);
     dispatch(fetchContacts({ 
       userId: currentUser.id, 
       platform 
     }) as any);
   };
 
-  // Fresh sync contacts for active platforms - ROBUST REFRESH
+  // Fresh sync contacts for active platforms - CONTROLLED REFRESH
   const refreshContacts = () => {
     if (!currentUser?.id) return;
     
-    console.log('[Dashboard] Refreshing all contacts - FORCE SYNC');
+    console.log('[Dashboard] Refreshing contacts with controlled sync');
+    
+    // Reset fetch times to allow immediate refresh
+    setLastFetchTime({});
     
     // Always try to fetch both platforms if they're connected
     if (platformConnection.whatsappConnected) {
-      console.log('[Dashboard] Force refreshing WhatsApp contacts');
+      console.log('[Dashboard] Refreshing WhatsApp contacts');
+      updateFetchTime('whatsapp');
       dispatch(freshSyncContacts({ 
         userId: currentUser.id, 
         platform: 'whatsapp' 
@@ -399,68 +435,79 @@ const useReduxContacts = () => {
     }
     
     if (platformConnection.telegramConnected) {
-      console.log('[Dashboard] Force refreshing Telegram contacts');
+      console.log('[Dashboard] Refreshing Telegram contacts');
+      updateFetchTime('telegram');
       dispatch(freshSyncContacts({ 
         userId: currentUser.id, 
         platform: 'telegram' 
       }) as any);
     }
     
-    // If no platforms connected, still try to fetch
+    // If no platforms connected, still try to fetch with cooldown
     if (!platformConnection.whatsappConnected && !platformConnection.telegramConnected) {
-      console.log('[Dashboard] No platforms connected, trying to fetch anyway');
-      dispatch(fetchContacts({ 
-        userId: currentUser.id, 
-        platform: 'whatsapp' 
-      }) as any);
-      dispatch(fetchContacts({ 
-        userId: currentUser.id, 
-        platform: 'telegram' 
-      }) as any);
+      console.log('[Dashboard] No platforms connected, trying conservative fetch');
+      setTimeout(() => {
+        fetchContactsForPlatform('whatsapp');
+        setTimeout(() => {
+          fetchContactsForPlatform('telegram');
+        }, 1000);
+      }, 500);
     }
   };
 
   // IMMEDIATE FETCH ON MOUNT - Don't wait for platform connection
   useEffect(() => {
     if (currentUser?.id) {
-      console.log('[Dashboard] Component mounted, immediately fetching contacts');
-      // Try both platforms immediately
-      fetchContactsForPlatform('whatsapp');
-      fetchContactsForPlatform('telegram');
+      console.log('[Dashboard] Component mounted, checking if fetch needed');
+      // Only fetch if we can (respecting cooldown)
+      if (canFetch('whatsapp')) {
+        fetchContactsForPlatform('whatsapp');
+      }
+      if (canFetch('telegram')) {
+        // Small delay to prevent simultaneous requests
+        setTimeout(() => {
+          fetchContactsForPlatform('telegram');
+        }, 500);
+      }
     }
-  }, [currentUser?.id, dispatch]);
+  }, [currentUser?.id]);
 
-  // Auto-fetch when platform connections are established
+  // Auto-fetch when platform connections are established (with cooldown)
   useEffect(() => {
-    if (currentUser?.id && platformConnection.whatsappConnected) {
+    if (currentUser?.id && platformConnection.whatsappConnected && canFetch('whatsapp')) {
       console.log('[Dashboard] WhatsApp connected, fetching contacts');
       fetchContactsForPlatform('whatsapp');
     }
-  }, [currentUser?.id, platformConnection.whatsappConnected, dispatch]);
+  }, [currentUser?.id, platformConnection.whatsappConnected]);
 
   useEffect(() => {
-    if (currentUser?.id && platformConnection.telegramConnected) {
+    if (currentUser?.id && platformConnection.telegramConnected && canFetch('telegram')) {
       console.log('[Dashboard] Telegram connected, fetching contacts');
       fetchContactsForPlatform('telegram');
     }
-  }, [currentUser?.id, platformConnection.telegramConnected, dispatch]);
+  }, [currentUser?.id, platformConnection.telegramConnected]);
 
-  // Listen for platform connection changes to refresh contacts
+  // Listen for platform connection changes to refresh contacts (with controlled refresh)
   useEffect(() => {
     const handlePlatformConnectionChange = () => {
       if (currentUser?.id) {
-        console.log('[Dashboard] Platform connection changed, refreshing contacts');
-        // Small delay to ensure connection status is updated
+        console.log('[Dashboard] Platform connection changed, checking if refresh needed');
+        // Small delay to ensure connection status is updated, then check cooldown
         setTimeout(() => {
-          refreshContacts();
-        }, 500);
+          if (platformConnection.whatsappConnected && canFetch('whatsapp')) {
+            fetchContactsForPlatform('whatsapp');
+          }
+          if (platformConnection.telegramConnected && canFetch('telegram')) {
+            fetchContactsForPlatform('telegram');
+          }
+        }, 1000);
       }
     };
 
     const handleForceRefresh = (event: CustomEvent) => {
       if (currentUser?.id) {
         console.log('[Dashboard] Force refresh requested from platform switcher');
-        // Force refresh contacts immediately
+        // Force refresh bypasses cooldown
         refreshContacts();
       }
     };
@@ -471,7 +518,7 @@ const useReduxContacts = () => {
       window.removeEventListener('platform-connection-changed', handlePlatformConnectionChange);
       window.removeEventListener('force-refresh-contacts', handleForceRefresh as EventListener);
     };
-  }, [currentUser?.id, platformConnection, dispatch]);
+  }, [currentUser?.id, platformConnection]);
 
   return {
     whatsappContacts,
@@ -490,9 +537,14 @@ const ActiveContactsList = ({ contactsState }: { contactsState: ReturnType<typeo
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const platformConnection = usePlatformConnection();
 
+  // FIXED: Clarify activity definition and fix contradictory messages - Fix for issue C
   const allContacts = useMemo(() => {
     return [...contactsState.whatsappContacts, ...contactsState.telegramContacts]
-      .filter(contact => contact.last_message) // Only show contacts with messages
+      .filter(contact => {
+        // Activity is defined as: contacts with recent messages (last_message_at exists)
+        // OR contacts with any message content (last_message exists)
+        return contact.last_message_at || contact.last_message;
+      })
       .sort((a, b) => {
         // Sort by last message time, most recent first
         const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
@@ -506,6 +558,10 @@ const ActiveContactsList = ({ contactsState }: { contactsState: ReturnType<typeo
     if (selectedPlatform === 'all') return allContacts;
     return allContacts.filter(contact => contact.platform === selectedPlatform);
   }, [allContacts, selectedPlatform]);
+
+  // FIXED: Calculate consistent contact counts
+  const totalActiveContacts = allContacts.length;
+  const totalAllContacts = contactsState.whatsappContacts.length + contactsState.telegramContacts.length;
 
   const getPlatformIcon = (platform: string) => {
     switch (platform) {
@@ -567,7 +623,9 @@ const ActiveContactsList = ({ contactsState }: { contactsState: ReturnType<typeo
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Active Contacts</CardTitle>
-            <CardDescription>Recent conversations and activity ({contactsState.totalContacts} total)</CardDescription>
+            <CardDescription>
+              Contacts with recent message activity ({totalActiveContacts} active of {totalAllContacts} total)
+            </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -597,9 +655,12 @@ const ActiveContactsList = ({ contactsState }: { contactsState: ReturnType<typeo
             <div className="text-center py-8 space-y-4">
               <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <div>
-                <p className="text-muted-foreground font-medium">No contacts found</p>
+                <p className="text-muted-foreground font-medium">No active contacts found</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Total contacts loaded: {contactsState.totalContacts}
+                  {totalAllContacts > 0 
+                    ? `${totalAllContacts} total contacts loaded, but none have recent message activity`
+                    : 'No contacts loaded yet'
+                  }
                 </p>
                 <p className="text-sm text-muted-foreground">
                   WhatsApp: {platformConnection.whatsappConnected ? 'Connected' : 'Disconnected'} • 
@@ -616,7 +677,7 @@ const ActiveContactsList = ({ contactsState }: { contactsState: ReturnType<typeo
                   {contactsState.isLoading ? 'Refreshing...' : 'Refresh & Fetch Contacts'}
                 </Button>
                 <p className="text-xs text-muted-foreground">
-                  Click refresh to fetch contacts from connected platforms
+                  Activity is based on contacts with recent messages or last message timestamps
                 </p>
               </div>
             </div>
@@ -677,20 +738,50 @@ const DailyNotesSection = ({ contactsState }: { contactsState: ReturnType<typeof
   const whatsappContactsWithMessages = contactsState.whatsappContacts; // Show ALL WhatsApp contacts
   const telegramContactsWithMessages = contactsState.telegramContacts; // Show ALL Telegram contacts
 
-  // Use PlatformManager to check actual connection status
+  // FIXED: Use multiple sources to determine platform connection status - Fix for issue A
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   
   useEffect(() => {
     const updateConnectedPlatforms = async () => {
       try {
-        // Use PlatformManager to get real-time connected platforms
-        const platforms = await platformManager.getAllActivePlatformsRealtime(true, false);
-        setConnectedPlatforms(platforms);
-        logger.info('[Dashboard] Connected platforms updated:', platforms);
+        // Primary: Use platformConnection hook
+        const primaryPlatforms = [];
+        if (platformConnection.whatsappConnected) primaryPlatforms.push('whatsapp');
+        if (platformConnection.telegramConnected) primaryPlatforms.push('telegram');
+        
+        // Secondary: Use localStorage check as fallback
+        const whatsappInStorage = currentUser?.id ? isWhatsAppConnected(currentUser.id) : false;
+        const telegramInStorage = currentUser?.id ? isTelegramConnected(currentUser.id) : false;
+        
+        // Combine both sources
+        const combinedPlatforms = [];
+        if (platformConnection.whatsappConnected || whatsappInStorage) combinedPlatforms.push('whatsapp');
+        if (platformConnection.telegramConnected || telegramInStorage) combinedPlatforms.push('telegram');
+        
+        // Tertiary: Check if we have actual contacts as another indicator
+        const hasWhatsappContacts = contactsState.whatsappContacts.length > 0;
+        const hasTelegramContacts = contactsState.telegramContacts.length > 0;
+        
+        if (hasWhatsappContacts && !combinedPlatforms.includes('whatsapp')) {
+          combinedPlatforms.push('whatsapp');
+        }
+        if (hasTelegramContacts && !combinedPlatforms.includes('telegram')) {
+          combinedPlatforms.push('telegram');
+        }
+        
+        setConnectedPlatforms(combinedPlatforms);
+        logger.info('[Dashboard] Updated connected platforms using multiple sources:', {
+          primary: primaryPlatforms,
+          storage: { whatsapp: whatsappInStorage, telegram: telegramInStorage },
+          contacts: { whatsapp: hasWhatsappContacts, telegram: hasTelegramContacts },
+          final: combinedPlatforms
+        });
       } catch (error) {
-        logger.error('[Dashboard] Error getting connected platforms:', error);
-        // Fallback to localStorage-based check
-        const fallbackPlatforms = platformManager.getAllActivePlatforms(true);
+        logger.error('[Dashboard] Error updating connected platforms:', error);
+        // Ultimate fallback: just use platformConnection hook
+        const fallbackPlatforms = [];
+        if (platformConnection.whatsappConnected) fallbackPlatforms.push('whatsapp');
+        if (platformConnection.telegramConnected) fallbackPlatforms.push('telegram');
         setConnectedPlatforms(fallbackPlatforms);
       }
     };
@@ -710,7 +801,7 @@ const DailyNotesSection = ({ contactsState }: { contactsState: ReturnType<typeof
       window.removeEventListener('platform-connection-changed', handlePlatformConnectionChange);
       window.removeEventListener('refresh-platform-status', handlePlatformConnectionChange);
     };
-  }, []);
+  }, [platformConnection.whatsappConnected, platformConnection.telegramConnected, contactsState.whatsappContacts.length, contactsState.telegramContacts.length, currentUser?.id]);
 
   // Debug logging - but don't show to user
   console.log('[Dashboard] Contact counts:', {
@@ -1086,10 +1177,18 @@ const Dashboard = () => {
   const analyticsData = useAnalyticsData();
   const contactsState = useReduxContacts();
 
-  // Manual refresh function
+  // FIXED: Manual refresh function without full page reload - Fix for issue D
   const handleRefresh = () => {
+    // Refresh contacts
     contactsState.refreshContacts();
-    window.location.reload();
+    // Refresh analytics data with cache bypass
+    if ('refresh' in analyticsData) {
+      (analyticsData as any).refresh();
+    }
+    // Show toast to confirm refresh
+    import('react-hot-toast').then(({ toast }) => {
+      toast.success('Dashboard data refreshed');
+    });
   };
 
   // Show empty state if no platforms are connected

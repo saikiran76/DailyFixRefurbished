@@ -556,6 +556,22 @@ const AppRoutes = () => {
         }
       />
 
+      {/* Settings Route - Fix for issue B */}
+      <Route
+        path="/settings"
+        element={
+          !session ? (
+            <Navigate to="/login" replace />
+          ) : !isComplete ? (
+            <Navigate to="/onboarding" replace />
+          ) : (
+            <AuthErrorBoundary>
+              <Dashboard />
+            </AuthErrorBoundary>
+          )
+        }
+      />
+
       {/* Onboarding Routes */}
       <Route
         path="/onboarding"

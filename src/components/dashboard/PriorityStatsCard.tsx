@@ -17,6 +17,50 @@ import {
 } from "@/components/ui/chart";
 import { priorityService, type PriorityStats } from '@/services/priorityService';
 
+// FIXED: Add caching for priority stats - Part of issue D fix
+const PRIORITY_CACHE_KEY = 'priority_stats_cache';
+const PRIORITY_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes cache
+
+interface CachedPriorityStats {
+  stats: PriorityStats;
+  timestamp: number;
+}
+
+const getCachedPriorityStats = (): PriorityStats | null => {
+  try {
+    const cached = localStorage.getItem(PRIORITY_CACHE_KEY);
+    if (!cached) return null;
+    
+    const parsedCache: CachedPriorityStats = JSON.parse(cached);
+    const now = Date.now();
+    
+    // Check if cache is still valid
+    if ((now - parsedCache.timestamp) < PRIORITY_CACHE_DURATION) {
+      return parsedCache.stats;
+    }
+    
+    // Cache expired, remove it
+    localStorage.removeItem(PRIORITY_CACHE_KEY);
+    return null;
+  } catch (error) {
+    console.error('Error reading priority stats cache:', error);
+    localStorage.removeItem(PRIORITY_CACHE_KEY);
+    return null;
+  }
+};
+
+const setCachedPriorityStats = (stats: PriorityStats): void => {
+  try {
+    const cacheData: CachedPriorityStats = {
+      stats,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(PRIORITY_CACHE_KEY, JSON.stringify(cacheData));
+  } catch (error) {
+    console.error('Error caching priority stats:', error);
+  }
+};
+
 const chartConfig = {
   contacts: {
     label: "Contacts",
@@ -39,13 +83,25 @@ const PriorityStatsCard: React.FC = () => {
   const [stats, setStats] = useState<PriorityStats>({ high: 0, medium: 0, low: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load priority stats
+  // FIXED: Load priority stats with caching
   useEffect(() => {
     const loadStats = () => {
       try {
+        // Check cache first
+        const cachedStats = getCachedPriorityStats();
+        if (cachedStats) {
+          setStats(cachedStats);
+          setIsLoading(false);
+          return;
+        }
+        
+        // If no cache, load from service
         const priorityStats = priorityService.getPriorityStats();
         setStats(priorityStats);
         setIsLoading(false);
+        
+        // Cache the result
+        setCachedPriorityStats(priorityStats);
       } catch (error) {
         console.error('Error loading priority stats:', error);
         setIsLoading(false);
@@ -54,8 +110,10 @@ const PriorityStatsCard: React.FC = () => {
 
     loadStats();
 
-    // Listen for priority changes to update stats
+    // Listen for priority changes to update stats and invalidate cache
     const handlePriorityChange = () => {
+      // Clear cache when priorities change
+      localStorage.removeItem(PRIORITY_CACHE_KEY);
       loadStats();
     };
 
