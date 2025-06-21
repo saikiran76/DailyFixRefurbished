@@ -99,7 +99,26 @@ export const PlatformSwitcher = ({
     logger.info('[PlatformSwitcher] Refreshing platform connection statuses with real-time API verification');
     
     try {
-      // Use PlatformManager's new real-time API verification
+      // Step 1: Check for never-connected platforms first
+      const neverConnectedResult = await platformManager.checkForNeverConnectedPlatforms();
+      
+      if (neverConnectedResult.hasNeverConnected && neverConnectedResult.platforms.length > 0) {
+        logger.info('[PlatformSwitcher] Detected never-connected platforms:', neverConnectedResult.platforms);
+        
+        // Dispatch event for Dashboard to handle
+        window.dispatchEvent(new CustomEvent('platform-never-connected-detected', {
+          detail: {
+            platforms: neverConnectedResult.platforms,
+            source: 'platform-switcher-refresh',
+            timestamp: Date.now()
+          }
+        }));
+        
+        toast.info(`No platforms connected yet. ${neverConnectedResult.platforms.join(', ')} available to connect.`);
+        return; // Don't proceed with normal refresh if no platforms are connected
+      }
+
+      // Step 2: Use PlatformManager's real-time API verification for connected platforms
       const activePlatforms = await platformManager.refreshAllPlatformStatuses();
       
       logger.info('[PlatformSwitcher] Platform status refresh completed:', activePlatforms);
@@ -108,17 +127,18 @@ export const PlatformSwitcher = ({
       if (activePlatforms.length > 0) {
         toast.success(`Refreshed: ${activePlatforms.join(', ')} connected`);
       } else {
-        toast.info('No platforms are currently connected');
+        // This case handles when platforms were previously connected but are now inactive
+        toast.warning('No platforms are currently active. Please check your connections.');
       }
     } catch (error) {
       logger.error('[PlatformSwitcher] Error refreshing platform statuses:', error);
       toast.error('Failed to refresh platform status');
       
       // Fallback to the old event-based refresh
-    const refreshEvent = new CustomEvent('refresh-platform-status');
-    window.dispatchEvent(refreshEvent);
+      const refreshEvent = new CustomEvent('refresh-platform-status');
+      window.dispatchEvent(refreshEvent);
     } finally {
-    setTimeout(() => setIsRefreshing(false), 2000);
+      setTimeout(() => setIsRefreshing(false), 2000);
     }
   };
 

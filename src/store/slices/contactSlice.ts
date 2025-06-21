@@ -1,7 +1,8 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
 import contactService from '@/services/contactService';
 import logger from '@/utils/logger';
-import { isWhatsAppConnected } from '@/utils/connectionStorage';
+import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage';
 import type { RootState } from '../store';
 
 // Add priority constants
@@ -25,13 +26,12 @@ export const fetchContacts = createAsyncThunk(
         return { contacts: [] };
       }
       
-      // Check if platform is connected using platform-specific connection check
+      // CRITICAL FIX: Properly check if platform is connected
       let isPlatformConnected = false;
       if (platform === 'whatsapp') {
         isPlatformConnected = isWhatsAppConnected(userId);
       } else if (platform === 'telegram') {
-        // Add function to check if telegram is connected from connectionStorage
-        isPlatformConnected = true; // Replace with actual telegram connection check
+        isPlatformConnected = isTelegramConnected(userId);
       }
 
       if (!isPlatformConnected) {
@@ -50,7 +50,7 @@ export const fetchContacts = createAsyncThunk(
       logger.info(`[Contacts] Fetched ${platform} contacts:`, result.contacts?.length);
       return { contacts: result.contacts || [] };
     } catch (error: any) {
-      logger.info('[Contacts] Failed to fetch contacts:', error);
+      logger.error('[Contacts] Failed to fetch contacts:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -63,32 +63,27 @@ export const freshSyncContacts = createAsyncThunk(
     try {
       const { userId, platform = 'whatsapp' } = params;
       
-      // Check if requested platform matches active platform
-      const activeContactList = localStorage.getItem('dailyfix_active_platform');
-      if (activeContactList && activeContactList !== platform) {
-        logger.info(`[Contacts] Requested fresh sync for ${platform} but active platform is ${activeContactList}, skipping sync`);
-        return [];
-      }
-      
-      // Check if platform is connected using platform-specific connection check
+      // CRITICAL FIX: Properly check if platform is connected before fresh sync
       let isPlatformConnected = false;
       if (platform === 'whatsapp') {
         isPlatformConnected = isWhatsAppConnected(userId);
       } else if (platform === 'telegram') {
-        // Add function to check if telegram is connected from connectionStorage
-        isPlatformConnected = true; // Replace with actual telegram connection check
+        isPlatformConnected = isTelegramConnected(userId);
       }
 
       if (!isPlatformConnected) {
         logger.info(`[Contacts] ${platform} is not connected, skipping fresh sync`);
-        return [];
+        return { contacts: [], message: `${platform} is not connected` };
       }
 
-      logger.info(`[Contacts] ${platform} is connected, performing fresh sync`);
+      logger.info(`[Contacts] Starting fresh sync for ${platform} for user:`, userId);
       const result = await contactService.performFreshSync(userId, isPlatformConnected, platform);
+      
+      logger.info(`[Contacts] Fresh sync completed for ${platform}:`, result);
       return result;
     } catch (error: any) {
-      logger.error('[Contacts] Fresh sync failed:', error);
+      const { platform = 'whatsapp' } = params;
+      logger.error(`[Contacts] Fresh sync failed for ${platform}:`, error);
       return rejectWithValue(error.message);
     }
   }
@@ -147,22 +142,6 @@ export const updateContactPriority = createAsyncThunk(
       // Return the priority update
       return { contactId, priority, timestamp: Date.now() };
     } catch (error: any) {
-      return rejectWithValue(error.message);
-    }
-  }
-);
-
-export const addContact = createAsyncThunk(
-  'contacts/add',
-  async ({ platform = 'telegram', contactId, userId }: { platform: string, contactId: string, userId: string }, { rejectWithValue }) => {
-    try {
-      logger.info(`[Contacts] Adding contact ${contactId} for platform ${platform}`);
-      // This assumes contactService has an addContact method.
-      // If not, this will need to be implemented in the service.
-      const newContact = await contactService.addContact(userId, contactId, platform);
-      return newContact;
-    } catch (error: any) {
-      logger.error('[Contacts] Failed to add contact:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -349,29 +328,30 @@ const contactSlice = createSlice({
           lastUpdated: timestamp
         };
       })
-      .addCase(addContact.fulfilled, (state, action: PayloadAction<any>) => {
-        const newContact = action.payload;
-        if (!newContact) return;
+      // CRITICAL FIX: Removed addContact.fulfilled case since we removed the thunk
+      // .addCase(addContact.fulfilled, (state, action: PayloadAction<any>) => {
+      //   const newContact = action.payload;
+      //   if (!newContact) return;
         
-        const existingContactIndex = state.items.findIndex(contact => contact.id === newContact.id);
-  
-        if (existingContactIndex === -1) {
-          state.items.push({
-            ...newContact,
-            metadata: {
-              ...(newContact.metadata || {}),
-              membership: newContact.metadata?.membership || 'join'
-            }
-          });
-          logger.info('[ContactSlice] New contact added:', {
-            contactId: newContact.id,
-            displayName: newContact.display_name
-          });
-        }
-      })
-      .addCase(addContact.rejected, (state, action) => {
-        state.error = action.payload as string;
-      })
+      //   const existingContactIndex = state.items.findIndex(contact => contact.id === newContact.id);
+
+      //   if (existingContactIndex === -1) {
+      //     state.items.push({
+      //       ...newContact,
+      //       metadata: {
+      //         ...(newContact.metadata || {}),
+      //         membership: newContact.metadata?.membership || 'join'
+      //       }
+      //     });
+      //     logger.info('[ContactSlice] New contact added:', {
+      //       contactId: newContact.id,
+      //       displayName: newContact.display_name
+      //     });
+      //   }
+      // })
+      // .addCase(addContact.rejected, (state, action) => {
+      //   state.error = action.payload as string;
+      // })
       // Handle rehydration
       .addCase('persist/REHYDRATE', (state, action) => {
         if ((action as any).payload?.contacts) {

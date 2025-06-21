@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
-import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
+import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
 import logger from '@/utils/logger';
 import { SYNC_STATES } from '@/utils/syncUtils';
 import { getSocket, initializeSocket } from '@/utils/socket';
@@ -15,6 +15,7 @@ import { MdCloudSync } from "react-icons/md";
 import { FiEdit3, FiRefreshCw, FiSearch, FiX, FiMessageSquare } from "react-icons/fi";
 import useAvatarCache from '@/hooks/useAvatarCache';
 import '@/components/styles/ShakeAnimation.css';
+import sync_experience from '@/components/assets/sync.gif'
 import platformManager from '@/services/PlatformManager';
 import ErrorMessage from '@/components/ui/ErrorMessage';
 import { Virtuoso } from 'react-virtuoso';
@@ -864,21 +865,21 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }: TelegramCon
     dispatch(updateContactMembership({ contactId: updatedContact.id, updatedContact }));
   }, [dispatch]);
 
-  useEffect(() => {
-    const socket = getSocket();
-    const handleNewContact = (data) => {
-      logger.info('[telegramContactList] New contact received:', {
-        contactId: data.id,
-        displayName: data.display_name
-      });
-      dispatch(addContact(data));
-      toast.success(`New contact: ${data.display_name}`);
-    };
-    if (socket) {
-      socket.on('telegram:new_contact', handleNewContact);
-      return () => socket.off('telegram:new_contact', handleNewContact);
-    }
-  }, [dispatch]);
+  // useEffect(() => {
+  //   const socket = getSocket();
+  //   const handleNewContact = (data) => {
+  //     logger.info('[telegramContactList] New contact received:', {
+  //       contactId: data.id,
+  //       displayName: data.display_name
+  //     });
+  //     dispatch(addContact(data));
+  //     toast.success(`New contact: ${data.display_name}`);
+  //   };
+  //   if (socket) {
+  //     socket.on('telegram:new_contact', handleNewContact);
+  //     return () => socket.off('telegram:new_contact', handleNewContact);
+  //   }
+  // }, [dispatch]);
 
   useEffect(() => {
     if (!session) {
@@ -1285,13 +1286,20 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }: TelegramCon
             {searchQuery ? (
               <p className="text-muted-foreground">No contacts found matching "{searchQuery}"</p>
             ) : syncProgress ? (
-              <p className="text-muted-foreground">Syncing contacts...</p>
+              <>
+                <img 
+                  src={sync_experience} 
+                  alt="Syncing contacts" 
+                  className="w-[14rem] h-[11rem]"
+                />
+                <p className="text-muted-foreground">Syncing contacts...</p>
+              </>
             ) : (
               <>
                 <img 
-                  src="https://miro.medium.com/v2/resize:fit:1100/format:webp/0*d94Rn5bObhShU7YV.gif" 
-                  alt="Waiting for contacts" 
-                  className="w-32 h-32 mb-4"
+                  src={sync_experience} 
+                  alt="Syncing contacts" 
+                  className="w-[14rem] h-[11rem] mb-2"
                 />
                 <p className="text-muted-foreground text-center">
                   Application syncs new contacts with new messages.<br />

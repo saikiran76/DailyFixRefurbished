@@ -4,7 +4,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import type { RootState, AppDispatch } from '@/store/store';
 import PropTypes from 'prop-types';
 import { toast } from 'react-hot-toast';
-import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, addContact, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
+import { fetchContacts, selectContactPriority, updateContactMembership, freshSyncContacts, hideContact, updateContactDisplayName } from '@/store/slices/contactSlice';
 import logger from '@/utils/logger';
 import { SYNC_STATES } from '@/utils/syncUtils';
 import { getSocket, initializeSocket } from '@/utils/socket';
@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import sync_experience from '@/components/assets/sync.gif'
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -922,21 +923,21 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
     dispatch(updateContactMembership({ contactId: updatedContact.id, updatedContact }));
   }, [dispatch]);
 
-  useEffect(() => {
-    const socket = getSocket();
-    const handleNewContact = (data) => {
-      logger.info('[WhatsAppContactList] New contact received:', {
-        contactId: data.id,
-        displayName: data.display_name
-      });
-      dispatch(addContact(data));
-      toast.success(`New contact: ${data.display_name}`);
-    };
-    if (socket) {
-      socket.on('whatsapp:new_contact', handleNewContact);
-      return () => socket.off('whatsapp:new_contact', handleNewContact);
-    }
-  }, [dispatch]);
+  // useEffect(() => {
+  //   const socket = getSocket();
+  //   const handleNewContact = (data) => {
+  //     logger.info('[WhatsAppContactList] New contact received:', {
+  //       contactId: data.id,
+  //       displayName: data.display_name
+  //     });
+  //     dispatch(addContact(data));
+  //     toast.success(`New contact: ${data.display_name}`);
+  //   };
+  //   if (socket) {
+  //     socket.on('whatsapp:new_contact', handleNewContact);
+  //     return () => socket.off('whatsapp:new_contact', handleNewContact);
+  //   }
+  // }, [dispatch]);
 
   useEffect(() => {
     if (!session) {
@@ -1335,19 +1336,23 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
             {searchQuery ? (
               <p className="text-muted-foreground">No contacts found matching "{searchQuery}"</p>
             ) : syncProgress ? (
-              <p className="text-muted-foreground">Syncing contacts...</p>
-            ) : (
               <>
                 <img 
-                  src="https://miro.medium.com/v2/resize:fit:1100/format:webp/0*d94Rn5bObhShU7YV.gif" 
-                  alt="Waiting for contacts" 
+                  src={sync_experience} 
+                  alt="Syncing contacts" 
                   className="w-32 h-32 mb-4"
                 />
-                <p className="text-muted-foreground text-center">
-                  Application syncs new contacts with new messages.<br />
-                  Keep track of the refresh button
-                </p>
+                <p className="text-muted-foreground">Syncing contacts...</p>
               </>
+            ) : (
+              <>
+              <img 
+                src={sync_experience} 
+                alt="Syncing contacts" 
+                className="w-[14rem] h-[11rem]"
+              />
+              <p className="text-muted-foreground">Syncing contacts...</p>
+            </>
             )}
           </div>
         ) : (

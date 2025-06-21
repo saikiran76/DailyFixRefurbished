@@ -16,7 +16,8 @@ import {
   Settings,
   ChevronDown,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -39,11 +40,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+// import {
+//   Popover,
+//   PopoverContent,
+//   PopoverTrigger,
+// } from "@/components/ui/popover";
+// import {
+//   Sheet,
+//   SheetContent,
+//   SheetDescription,
+//   SheetHeader,
+//   SheetTitle,
+//   SheetFooter,
+// } from "@/components/ui/sheet";
+import { toast } from 'sonner';
 
 // Import our hooks and services
 import { usePlatformConnection } from '@/hooks/usePlatformConnection';
@@ -402,6 +412,13 @@ const useReduxContacts = () => {
   const fetchContactsForPlatform = (platform: 'whatsapp' | 'telegram') => {
     if (!currentUser?.id) return;
     
+    // CRITICAL FIX: Don't fetch if platform is not connected
+    const isConnected = platform === 'whatsapp' ? platformConnection.whatsappConnected : platformConnection.telegramConnected;
+    if (!isConnected) {
+      console.log(`[Dashboard] Skipping ${platform} fetch - platform not connected`);
+      return;
+    }
+    
     if (!canFetch(platform)) {
       console.log(`[Dashboard] Skipping ${platform} fetch due to cooldown`);
       return;
@@ -424,7 +441,7 @@ const useReduxContacts = () => {
     // Reset fetch times to allow immediate refresh
     setLastFetchTime({});
     
-    // Always try to fetch both platforms if they're connected
+    // CRITICAL FIX: Only fetch if platforms are actually connected
     if (platformConnection.whatsappConnected) {
       console.log('[Dashboard] Refreshing WhatsApp contacts');
       updateFetchTime('whatsapp');
@@ -432,6 +449,8 @@ const useReduxContacts = () => {
         userId: currentUser.id, 
         platform: 'whatsapp' 
       }) as any);
+    } else {
+      console.log('[Dashboard] Skipping WhatsApp refresh - not connected');
     }
     
     if (platformConnection.telegramConnected) {
@@ -441,36 +460,33 @@ const useReduxContacts = () => {
         userId: currentUser.id, 
         platform: 'telegram' 
       }) as any);
+    } else {
+      console.log('[Dashboard] Skipping Telegram refresh - not connected');
     }
     
-    // If no platforms connected, still try to fetch with cooldown
+    // CRITICAL FIX: Don't fetch if no platforms are connected
     if (!platformConnection.whatsappConnected && !platformConnection.telegramConnected) {
-      console.log('[Dashboard] No platforms connected, trying conservative fetch');
-      setTimeout(() => {
-        fetchContactsForPlatform('whatsapp');
-        setTimeout(() => {
-          fetchContactsForPlatform('telegram');
-        }, 1000);
-      }, 500);
+      console.log('[Dashboard] No platforms connected, skipping all contact fetches');
+      return;
     }
   };
 
-  // IMMEDIATE FETCH ON MOUNT - Don't wait for platform connection
+  // CRITICAL FIX: Only fetch on mount if platforms are connected
   useEffect(() => {
-    if (currentUser?.id) {
+    if (currentUser?.id && platformConnection.totalConnected > 0) {
       console.log('[Dashboard] Component mounted, checking if fetch needed');
-      // Only fetch if we can (respecting cooldown)
-      if (canFetch('whatsapp')) {
+      // Only fetch if platform is connected and we can fetch (respecting cooldown)
+      if (platformConnection.whatsappConnected && canFetch('whatsapp')) {
         fetchContactsForPlatform('whatsapp');
       }
-      if (canFetch('telegram')) {
+      if (platformConnection.telegramConnected && canFetch('telegram')) {
         // Small delay to prevent simultaneous requests
         setTimeout(() => {
           fetchContactsForPlatform('telegram');
         }, 500);
       }
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, platformConnection.totalConnected]);
 
   // Auto-fetch when platform connections are established (with cooldown)
   useEffect(() => {
@@ -490,7 +506,7 @@ const useReduxContacts = () => {
   // Listen for platform connection changes to refresh contacts (with controlled refresh)
   useEffect(() => {
     const handlePlatformConnectionChange = () => {
-      if (currentUser?.id) {
+      if (currentUser?.id && platformConnection.totalConnected > 0) {
         console.log('[Dashboard] Platform connection changed, checking if refresh needed');
         // Small delay to ensure connection status is updated, then check cooldown
         setTimeout(() => {
@@ -505,9 +521,9 @@ const useReduxContacts = () => {
     };
 
     const handleForceRefresh = (event: CustomEvent) => {
-      if (currentUser?.id) {
+      if (currentUser?.id && platformConnection.totalConnected > 0) {
         console.log('[Dashboard] Force refresh requested from platform switcher');
-        // Force refresh bypasses cooldown
+        // Force refresh bypasses cooldown but still respects connection status
         refreshContacts();
       }
     };
@@ -518,7 +534,7 @@ const useReduxContacts = () => {
       window.removeEventListener('platform-connection-changed', handlePlatformConnectionChange);
       window.removeEventListener('force-refresh-contacts', handleForceRefresh as EventListener);
     };
-  }, [currentUser?.id, platformConnection]);
+  }, [currentUser?.id, platformConnection.totalConnected]);
 
   return {
     whatsappContacts,
@@ -1176,6 +1192,10 @@ const Dashboard = () => {
   const platformConnection = usePlatformConnection();
   const analyticsData = useAnalyticsData();
   const contactsState = useReduxContacts();
+  const navigate = useNavigate();
+
+  // CRITICAL FIX: Move useSelector outside of useEffect to follow Rules of Hooks
+  const currentUser = useSelector((state: any) => state.auth.session?.user);
 
   // FIXED: Manual refresh function without full page reload - Fix for issue D
   const handleRefresh = () => {
@@ -1186,9 +1206,7 @@ const Dashboard = () => {
       (analyticsData as any).refresh();
     }
     // Show toast to confirm refresh
-    import('react-hot-toast').then(({ toast }) => {
-      toast.success('Dashboard data refreshed');
-    });
+    toast.success('Dashboard data refreshed');
   };
 
   // Show empty state if no platforms are connected

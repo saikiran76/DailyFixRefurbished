@@ -6,22 +6,13 @@ import '@/components/styles/glowing-platform-icons.css'
 import { useSelector, useDispatch } from "react-redux"
 import { useNavigate, useLocation } from "react-router-dom"
 import { AppSidebar } from "@/components/ui/app-sidebar"
-// import {
-//   Breadcrumb,
-//   BreadcrumbItem,
-//   BreadcrumbLink,
-//   BreadcrumbList,
-//   BreadcrumbPage,
-//   BreadcrumbSeparator,
-// } from "@/components/ui/breadcrumb"
-// import { Separator } from "@/components/ui/separator"
 import {
   SidebarProvider, SidebarInset, SidebarTrigger
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send, ArrowLeft, LayoutDashboard, Inbox } from "lucide-react"
+import { Settings as SettingsIcon, AlertTriangle, GripVertical, ChevronsLeft, ChevronsRight, MessageSquare, Send, ArrowLeft, LayoutDashboard, Inbox, Shield } from "lucide-react"
 import PlatformSettings from "@/components/PlatformSettings"
 import PlatformsInfo from "@/components/PlatformsInfo"
 import WhatsappContactList from "@/components/platforms/whatsapp/WhatsappContactList"
@@ -34,6 +25,17 @@ import { toast } from 'react-hot-toast'
 import logger from '@/utils/logger'
 import { useMousePosition } from '@/hooks/useMousePosition'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet"
+import { Checkbox } from "@/components/ui/checkbox"
+import { FaWhatsapp, FaTelegram } from "react-icons/fa"
+import platformManager from '@/services/PlatformManager'
 
 // Define interface for contact objects
 interface Contact {
@@ -76,6 +78,16 @@ export default function Page() {
   // State to track window width for responsive design
   const [isMobile, setIsMobile] = useState<boolean>(false)
 
+  // State for never-connected alert dialog
+  const [showNeverConnectedAlert, setShowNeverConnectedAlert] = useState(false)
+  const [neverConnectedPlatforms, setNeverConnectedPlatforms] = useState<string[]>([])
+  const [isCheckingNeverConnected, setIsCheckingNeverConnected] = useState(false)
+
+  // Terms & Conditions state
+  const [showTermsSheet, setShowTermsSheet] = useState(false)
+  const [pendingPlatform, setPendingPlatform] = useState<string | null>(null)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+
   // Use the mouse position hook for the glow effect
   useMousePosition();
 
@@ -116,6 +128,183 @@ export default function Page() {
       isPlatformConnected
     });
   }, [isWhatsappActive, isTelegramActive, activeContactList, isPlatformConnected]);
+  
+  // Check for never-connected platforms when no platforms are detected as connected
+  useEffect(() => {
+    const checkNeverConnectedOnLoad = async () => {
+      // Only check if no platforms appear to be connected and user is authenticated
+      if (!isPlatformConnected && currentUser?.id) {
+        try {
+          logger.info('[MainLayout] No platforms connected locally, checking for never-connected status');
+          
+          const result = await platformManager.checkForNeverConnectedPlatforms();
+          
+          if (result.hasNeverConnected && result.platforms.length > 0) {
+            logger.info('[MainLayout] Detected never-connected platforms, dispatching event');
+            
+            // Dispatch event for Dashboard to handle
+            window.dispatchEvent(new CustomEvent('platform-never-connected-detected', {
+              detail: {
+                platforms: result.platforms,
+                source: 'main-layout-load',
+                timestamp: Date.now()
+              }
+            }));
+          }
+        } catch (error) {
+          logger.error('[MainLayout] Error checking never-connected platforms:', error);
+        }
+      }
+    };
+
+    // Small delay to ensure other components have loaded
+    const timeoutId = setTimeout(checkNeverConnectedOnLoad, 2000);
+    return () => clearTimeout(timeoutId);
+  }, [isPlatformConnected, currentUser?.id]);
+
+  // Check for never-connected platforms on MainLayout load
+  useEffect(() => {
+    const checkNeverConnected = async () => {
+      // Skip if already checking or alert already dismissed for this session
+      if (isCheckingNeverConnected || sessionStorage.getItem('never_connected_dismissed') === 'true') {
+        return;
+      }
+
+      // Skip if user is not authenticated
+      if (!currentUser?.id) {
+        return;
+      }
+
+      // Skip if platforms are already connected
+      if (isPlatformConnected) {
+        return;
+      }
+
+      try {
+        setIsCheckingNeverConnected(true);
+        
+        // Small delay to ensure other components have loaded
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        const result = await platformManager.checkForNeverConnectedPlatforms();
+        
+        if (result.hasNeverConnected && result.platforms.length > 0) {
+          logger.info('[MainLayout] User has never connected to platforms:', result.platforms);
+          setNeverConnectedPlatforms(result.platforms);
+          setShowNeverConnectedAlert(true);
+          logger.info('[MainLayout] SHEET SHOULD SHOW NOW - showNeverConnectedAlert set to true');
+        } else {
+          logger.info('[MainLayout] User has connected platforms or check failed, not showing sheet');
+        }
+      } catch (error) {
+        logger.error('[MainLayout] Error checking for never-connected platforms:', error);
+      } finally {
+        setIsCheckingNeverConnected(false);
+      }
+    };
+
+    // Only run ONCE when user changes and no platforms are connected
+    if (currentUser?.id && !isPlatformConnected) {
+      checkNeverConnected();
+    }
+  }, [currentUser?.id, isPlatformConnected]);
+
+  // Listen for platform-never-connected events
+  useEffect(() => {
+    const handleNeverConnectedEvent = (event: CustomEvent) => {
+      logger.info('[MainLayout] Received platform-never-connected event:', event.detail);
+      
+      const { platform, message } = event.detail;
+      
+      // Add platform to never-connected list if not already there
+      setNeverConnectedPlatforms(prev => {
+        if (!prev.includes(platform)) {
+          return [...prev, platform];
+        }
+        return prev;
+      });
+      
+      // Show alert if not already showing
+      if (!showNeverConnectedAlert) {
+        setShowNeverConnectedAlert(true);
+      }
+    };
+
+    const handleNeverConnectedDetectedEvent = (event: CustomEvent) => {
+      logger.info('[MainLayout] Received platform-never-connected-detected event:', event.detail);
+      
+      const { platforms } = event.detail;
+      
+      // Don't show if already dismissed in this session
+      const dismissed = sessionStorage.getItem('never_connected_alert_dismissed');
+      if (dismissed === 'true') {
+        logger.info('[MainLayout] Never-connected alert was dismissed this session, ignoring detected event');
+        return;
+      }
+      
+      // Update platforms list and show alert
+      setNeverConnectedPlatforms(platforms);
+      setShowNeverConnectedAlert(true);
+    };
+
+    window.addEventListener('platform-never-connected', handleNeverConnectedEvent as EventListener);
+    window.addEventListener('platform-never-connected-detected', handleNeverConnectedDetectedEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-never-connected', handleNeverConnectedEvent as EventListener);
+      window.removeEventListener('platform-never-connected-detected', handleNeverConnectedDetectedEvent as EventListener);
+    };
+  }, [showNeverConnectedAlert]);
+  
+  // Listen for platform-terms-required events from PlatformSettings
+  useEffect(() => {
+    const handleTermsRequired = (event: CustomEvent) => {
+      const { platform } = event.detail;
+      logger.info(`[MainLayout] Terms required for ${platform}, showing sheet`);
+      
+      setPendingPlatform(platform);
+      setTermsAccepted(false);
+      setShowTermsSheet(true);
+    };
+
+    window.addEventListener('platform-terms-required', handleTermsRequired as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-terms-required', handleTermsRequired as EventListener);
+    };
+  }, []);
+
+  // Handle Terms & Conditions acceptance
+  const handleTermsAcceptAndContinue = () => {
+    if (!termsAccepted || !pendingPlatform) {
+      toast.error('Please accept the terms and conditions to continue');
+      return;
+    }
+
+    setShowTermsSheet(false);
+    
+    // Emit event back to PlatformSettings to proceed with setup
+    window.dispatchEvent(new CustomEvent('platform-terms-accepted', {
+      detail: {
+        platform: pendingPlatform,
+        timestamp: Date.now()
+      }
+    }));
+    
+    logger.info(`[MainLayout] Terms accepted for ${pendingPlatform}, emitting acceptance event`);
+    
+    // Clear state
+    setPendingPlatform(null);
+    setTermsAccepted(false);
+  };
+
+  // Handle Terms & Conditions cancellation
+  const handleTermsCancel = () => {
+    setShowTermsSheet(false);
+    setPendingPlatform(null);
+    setTermsAccepted(false);
+    logger.info('[MainLayout] Terms & Conditions cancelled');
+  };
   
   // Initialize active contact list based on connected platforms on mount
   useEffect(() => {
@@ -363,6 +552,18 @@ export default function Page() {
   // Redux dispatch for actions
   const dispatch = useDispatch();
 
+  // Handle never-connected alert actions
+  const handleConnectPlatforms = () => {
+    setShowNeverConnectedAlert(false);
+    navigate('/settings');
+  };
+
+  const handleDismissAlert = () => {
+    setShowNeverConnectedAlert(false);
+    // Store dismissal in session storage to prevent re-showing
+    sessionStorage.setItem('never_connected_dismissed', 'true');
+  };
+
   // Function to render the platform icon based on the active platform
   const renderPlatformIcon = () => {
     if (activeContactList === 'telegram') {
@@ -419,285 +620,443 @@ export default function Page() {
   }, [location.pathname])
 
   return (
-    <SidebarProvider 
-      className="h-screen"
-      defaultOpen={false}
-      open={false}
-      onOpenChange={() => {}}
-      style={{}}
-    >
-      <AppSidebar
-        onWhatsAppSelected={handleWhatsAppSelected}
-        onTelegramSelected={handleTelegramSelected}
-        onPlatformSelect={handlePlatformSelect}
-        onSettingsSelected={handleSettingsClick}
-        onPlatformConnect={handleSettingsClick}
-      />
-      <SidebarInset className="">
-        {/* Header */}
-        <header className="flex h-16 shrink-0 items-center gap-2 bg-header whatsapp-glowing-border p-4">
-          {!isMobile || (!selectedContact && !settingsOpen) ? (
-            <SidebarTrigger className="-ml-1" onClick={() => {}} />
-          ) : (
-            selectedContact && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleChatClose}
-                className="text-foreground hover:bg-accent"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                <span className="sr-only">Back to contacts</span>
-              </Button>
-            )
-          )}
-          <Separator orientation="vertical" className="mr-2 h-4" />
+    <>
+      {/* Never Connected Sheet */}
+      <Sheet open={showNeverConnectedAlert} onOpenChange={setShowNeverConnectedAlert}>
+        <SheetContent side="right" className="sm:max-w-md flex flex-col h-full">
+          <SheetHeader className="flex-shrink-0 space-y-4 pb-4">
+            <SheetTitle className="flex items-center gap-2 text-left">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              No Platforms Connected
+            </SheetTitle>
+            <SheetDescription className="text-left">
+              You haven't connected to any messaging platforms yet. To start using DailyFix and view your messaging analytics, you need to connect to at least one platform.
+            </SheetDescription>
+          </SheetHeader>
           
-          {/* Mobile Header Layout */}
-          {isMobile ? (
-            <>
-              {/* Mobile: Show condensed title and menu button */}
-              <div className="flex-1 ml-2 text-base font-medium text-header-foreground truncate">
-                {renderHeaderTitle()}
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            <div className="space-y-3">
+              <p className="font-medium text-foreground text-sm">Available platforms:</p>
+              <div className="flex items-center gap-2">
+                <FaWhatsapp className="h-4 w-4 text-green-500" />
+                <span className="text-foreground text-sm">WhatsApp</span>
               </div>
-              
-              {/* Mobile: Dropdown menu for actions */}
-              <Popover>
-                <PopoverTrigger asChild>
+              <div className="flex items-center gap-2">
+                <FaTelegram className="h-4 w-4 text-blue-500" />
+                <span className="text-foreground text-sm">Telegram</span>
+              </div>
+            </div>
+
+            {neverConnectedPlatforms.length > 0 && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border">
+                <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center">
+                  <MessageSquare className="h-4 w-4 inline mr-1" />
+                  Platforms available: {neverConnectedPlatforms.join(', ')}
+                </p>
+              </div>
+            )}
+          </div>
+          
+          {/* Fixed Footer with Buttons */}
+          <div className="flex-shrink-0 flex flex-col gap-2 pt-4 mt-4 border-t">
+            <Button variant="outline" onClick={handleDismissAlert} className="w-full">
+              Maybe Later
+            </Button>
+            <Button onClick={handleConnectPlatforms} className="w-full">
+              <SettingsIcon className="h-4 w-4 mr-2" />
+              Connect Platforms
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Terms & Conditions Sheet */}
+      <Sheet open={showTermsSheet} onOpenChange={setShowTermsSheet}>
+        <SheetContent side="right" className="sm:max-w-lg flex flex-col h-full">
+          <SheetHeader className="flex-shrink-0 space-y-4 pb-4">
+            <SheetTitle className="flex items-center gap-2 text-left">
+              <Shield className="h-5 w-5 text-blue-500" />
+              Terms & Conditions
+            </SheetTitle>
+            <SheetDescription className="text-left">
+              Please review and accept our terms before connecting your {pendingPlatform} account.
+            </SheetDescription>
+          </SheetHeader>
+          
+          {/* Scrollable Content Area */}
+          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+            {/* Security Notice */}
+            <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2">
+                  <h4 className="font-medium text-blue-800 dark:text-blue-200 text-sm">Important Security Information</h4>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    By connecting your {pendingPlatform} account, you agree to the following terms:
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Terms List */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <div>
+                  <h5 className="font-medium text-foreground mb-1 text-sm">Secure Contact Synchronization</h5>
+                  <p className="text-xs text-muted-foreground">
+                    Our secure protocol (which is open and secure) syncs contacts eventually. 
+                    Do not panic or wonder about the contacts if not immediately synced. 
+                    Keep track of the refresh sync button after connecting in the contact lists.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <div>
+                  <h5 className="font-medium text-foreground mb-1 text-sm">AI Access & Security</h5>
+                  <p className="text-xs text-muted-foreground">
+                    Our secure AI will also have access to your chats, but it's highly secure and limited. 
+                    AI processing is used only for generating summaries and insights to improve your messaging experience.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <div>
+                  <h5 className="font-medium text-foreground mb-1 text-sm">Data Protection</h5>
+                  <p className="text-xs text-muted-foreground">
+                    All your data is encrypted and stored securely. We do not share your personal information 
+                    or chat data with third parties. Your privacy is our top priority.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
+                <div>
+                  <h5 className="font-medium text-foreground mb-1 text-sm">Open Source Protocol</h5>
+                  <p className="text-xs text-muted-foreground">
+                    Our connection protocol is open source and can be audited for security. 
+                    We believe in transparency and security through openness.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Acceptance Checkbox */}
+            <div className="pt-3 border-t">
+              <div className="flex items-start space-x-3">
+                <Checkbox
+                  id="terms-acceptance"
+                  checked={termsAccepted}
+                  onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
+                  className="mt-1"
+                />
+                <label 
+                  htmlFor="terms-acceptance" 
+                  className="text-sm text-foreground leading-relaxed cursor-pointer"
+                >
+                  I understand and accept these terms and conditions. I acknowledge that DailyFix will have 
+                  secure access to my {pendingPlatform} contacts and messages for the purpose of providing 
+                  messaging management and AI-powered insights.
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          {/* Fixed Footer with Buttons */}
+          <SheetFooter className="flex-shrink-0 flex flex-col gap-2 pt-4 mt-4 border-t">
+            <Button 
+              onClick={handleTermsAcceptAndContinue}
+              disabled={!termsAccepted}
+              className="w-full"
+            >
+              Accept & Continue
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleTermsCancel}
+              className="w-full"
+            >
+              Cancel
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Layout */}
+      <SidebarProvider 
+        className="h-screen"
+        defaultOpen={false}
+        open={false}
+        onOpenChange={() => {}}
+        style={{}}
+      >
+        <AppSidebar
+          onWhatsAppSelected={handleWhatsAppSelected}
+          onTelegramSelected={handleTelegramSelected}
+          onPlatformSelect={handlePlatformSelect}
+          onSettingsSelected={handleSettingsClick}
+          onPlatformConnect={handleSettingsClick}
+        />
+        <SidebarInset className="">
+          {/* Header */}
+          <header className="flex h-16 shrink-0 items-center gap-2 bg-header whatsapp-glowing-border p-4">
+            {!isMobile || (!selectedContact && !settingsOpen) ? (
+              <SidebarTrigger className="-ml-1" onClick={() => {}} />
+            ) : (
+              selectedContact && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleChatClose}
+                  className="text-foreground hover:bg-accent"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <span className="sr-only">Back to contacts</span>
+                </Button>
+              )
+            )}
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            
+            {/* Mobile Header Layout */}
+            {isMobile ? (
+              <>
+                {/* Mobile: Show condensed title and menu button */}
+                <div className="flex-1 ml-2 text-base font-medium text-header-foreground truncate">
+                  {renderHeaderTitle()}
+                </div>
+                
+                {/* Mobile: Dropdown menu for actions */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-header-foreground hover:bg-accent flex-shrink-0"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-5 w-5"
+                      >
+                        <circle cx="12" cy="12" r="1" />
+                        <circle cx="12" cy="5" r="1" />
+                        <circle cx="12" cy="19" r="1" />
+                      </svg>
+                      <span className="sr-only">Menu</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-48">
+                    <div className="space-y-2">
+                      {!settingsOpen && !selectedContact && (
+                        <>
+                          <Button
+                            variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => handleViewToggle('dashboard')}
+                            className="w-full justify-start"
+                          >
+                            <LayoutDashboard className="h-4 w-4 mr-2" />
+                            Dashboard
+                          </Button>
+                          <Button
+                            variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                            size="sm"
+                            onClick={() => handleViewToggle('inbox')}
+                            className="w-full justify-start"
+                          >
+                            <Inbox className="h-4 w-4 mr-2" />
+                            Inbox
+                          </Button>
+                          <Separator className="my-2" />
+                        </>
+                      )}
+                      {settingsOpen ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSettingsOpen(false)}
+                          className="w-full justify-start"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-4 w-4 mr-2"
+                          >
+                            <path d="M18 6 6 18" />
+                            <path d="m6 6 12 12" />
+                          </svg>
+                          Close Settings
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSettingsOpen(true)}
+                          className="w-full justify-start"
+                        >
+                          <SettingsIcon className="h-4 w-4 mr-2" />
+                          Settings
+                        </Button>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </>
+            ) : (
+              <>
+                {/* Desktop Header Layout */}
+                {/* View Toggle Buttons */}
+                {!settingsOpen && !selectedContact && (
+                  <div className="flex items-center space-x-2 mr-4">
+                    <Button
+                      variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleViewToggle('dashboard')}
+                      className="text-header-foreground"
+                    >
+                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      Dashboard
+                    </Button>
+                    <Button
+                      variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleViewToggle('inbox')}
+                      className="text-header-foreground"
+                    >
+                      <Inbox className="h-4 w-4 mr-2" />
+                      Inbox
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
+                  {renderHeaderTitle()}
+                </div>
+                
+                {settingsOpen ? (
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-header-foreground hover:bg-accent flex-shrink-0"
+                    onClick={() => setSettingsOpen(false)}
+                    className="ml-auto text-header-foreground hover:bg-accent"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
+                      width="24"
+                      height="24"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      className="h-5 w-5"
+                      className="h-4 w-4"
                     >
-                      <circle cx="12" cy="12" r="1" />
-                      <circle cx="12" cy="5" r="1" />
-                      <circle cx="12" cy="19" r="1" />
+                      <path d="M18 6 6 18" />
+                      <path d="m6 6 12 12" />
                     </svg>
-                    <span className="sr-only">Menu</span>
+                    <span className="sr-only">Close</span>
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent align="end" className="w-48">
-                  <div className="space-y-2">
-                    {!settingsOpen && !selectedContact && (
-                      <>
-                        <Button
-                          variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => handleViewToggle('dashboard')}
-                          className="w-full justify-start"
-                        >
-                          <LayoutDashboard className="h-4 w-4 mr-2" />
-                          Dashboard
-                        </Button>
-                        <Button
-                          variant={currentView === 'inbox' ? 'default' : 'ghost'}
-                          size="sm"
-                          onClick={() => handleViewToggle('inbox')}
-                          className="w-full justify-start"
-                        >
-                          <Inbox className="h-4 w-4 mr-2" />
-                          Inbox
-                        </Button>
-                        <Separator className="my-2" />
-                      </>
-                    )}
-                    {settingsOpen ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSettingsOpen(false)}
-                        className="w-full justify-start"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          className="h-4 w-4 mr-2"
-                        >
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                        Close Settings
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSettingsOpen(true)}
-                        className="w-full justify-start"
-                      >
-                        <SettingsIcon className="h-4 w-4 mr-2" />
-                        Settings
-                      </Button>
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </>
-          ) : (
-            <>
-              {/* Desktop Header Layout */}
-              {/* View Toggle Buttons */}
-              {!settingsOpen && !selectedContact && (
-                <div className="flex items-center space-x-2 mr-4">
+                ) : (
                   <Button
-                    variant={currentView === 'dashboard' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => handleViewToggle('dashboard')}
-                    className="text-header-foreground"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSettingsOpen(true)}
+                    className="ml-auto text-header-foreground hover:bg-accent"
                   >
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Dashboard
+                    <SettingsIcon className="h-5 w-5" />
+                    <span className="sr-only">Settings</span>
                   </Button>
-                  <Button
-                    variant={currentView === 'inbox' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => handleViewToggle('inbox')}
-                    className="text-header-foreground"
-                  >
-                    <Inbox className="h-4 w-4 mr-2" />
-                    Inbox
-                  </Button>
-                </div>
-              )}
-              
-              <div className="flex-1 ml-4 text-lg font-medium text-header-foreground">
-                {renderHeaderTitle()}
-              </div>
-              
-              {settingsOpen ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSettingsOpen(false)}
-                  className="ml-auto text-header-foreground hover:bg-accent"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="24"
-                    height="24"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-4 w-4"
-                  >
-                    <path d="M18 6 6 18" />
-                    <path d="m6 6 12 12" />
-                  </svg>
-                  <span className="sr-only">Close</span>
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setSettingsOpen(true)}
-                  className="ml-auto text-header-foreground hover:bg-accent"
-                >
-                  <SettingsIcon className="h-5 w-5" />
-                  <span className="sr-only">Settings</span>
-                </Button>
-              )}
-            </>
-          )}
-        </header>
+                )}
+              </>
+            )}
+          </header>
 
-        {/* Main Content */}
-        <div className={`flex flex-1 h-full bg-background ${isMobile ? 'ml-0' : 'ml-6'}`} ref={contentRef}>
-          {/* Dashboard View */}
-          {currentView === 'dashboard' && !settingsOpen && (
-            <Dashboard />
-          )}
+          {/* Main Content */}
+          <div className={`flex flex-1 h-full bg-background ${isMobile ? 'ml-0' : 'ml-6'}`} ref={contentRef}>
+            {/* Dashboard View */}
+            {currentView === 'dashboard' && !settingsOpen && (
+              <Dashboard />
+            )}
 
-          {/* Settings View */}
-          {settingsOpen && (
-            <>
-              <div
-                style={{ width: isMobile ? '0%' : `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
-                className={`h-full flex flex-col bg-background ${isMobile ? 'hidden' : ''}`}
-              >
-                <div className="flex-1 flex flex-col p-4 overflow-hidden rounded-lg">
-                  {/* Inbox content */}
-                  {!isPlatformConnected && (
-                    <div className="flex flex-col items-center justify-center h-full gap-6">
-                      <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
-                        <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
+            {/* Settings View */}
+            {settingsOpen && (
+              <>
+                <div
+                  style={{ width: isMobile ? '0%' : `${inboxWidth}%`, transition: isResizing ? 'none' : 'width 0.2s ease-in-out' }}
+                  className={`h-full flex flex-col bg-background ${isMobile ? 'hidden' : ''}`}
+                >
+                  <div className="flex-1 flex flex-col p-4 overflow-hidden rounded-lg">
+                    {/* Inbox content */}
+                    {!isPlatformConnected && (
+                      <div className="flex flex-col items-center justify-center h-full gap-6">
+                        <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
+                          <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
+                        </div>
+                        <p className="text-muted-foreground text-center text-lg">
+                          No platforms connected, go ahead and connect to a platform in Settings
+                        </p>
                       </div>
-                      <p className="text-muted-foreground text-center text-lg">
-                        No platforms connected, go ahead and connect to a platform in Settings
-                      </p>
-                    </div>
-                  )}
-                  {isPlatformConnected && !activeContactList && (
-                    <div className="flex flex-col gap-6">
-                      <div className="rounded-lg overflow-hidden">
-                        <div className="p-6 pb-8">
-                          <PlatformsInfo onStartSync={handleStartSync} />
+                    )}
+                    {isPlatformConnected && !activeContactList && (
+                      <div className="flex flex-col gap-6">
+                        <div className="rounded-lg overflow-hidden">
+                          <div className="p-6 pb-8">
+                            <PlatformsInfo onStartSync={handleStartSync} />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                  {/* Additional inbox content */}
+                    )}
+                    {/* Additional inbox content */}
+                  </div>
                 </div>
-              </div>
-              {!isMobile && (
-                <div
-                  ref={resizerRef}
-                  className="w-4 h-full bg-transparent flex items-center justify-center cursor-col-resize z-50"
-                  onMouseDown={handleMouseDown}
-                  onMouseEnter={() => setIsResizerHovered(true)}
-                  onMouseLeave={() => setIsResizerHovered(false)}
-                >
-                  <div className={`h-full w-[1px] bg-border ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
+                {!isMobile && (
+                  <div
+                    ref={resizerRef}
+                    className="w-4 h-full bg-transparent flex items-center justify-center cursor-col-resize z-50"
+                    onMouseDown={handleMouseDown}
+                    onMouseEnter={() => setIsResizerHovered(true)}
+                    onMouseLeave={() => setIsResizerHovered(false)}
+                  >
+                    <div className={`h-full w-[1px] bg-border ${isResizerHovered || isResizing ? 'opacity-100' : 'opacity-50'}`} />
+                  </div>
+                )}
+                <div className="flex-1 h-full flex flex-col bg-card overflow-auto">
+                  <div className="flex-1 p-6 overflow-auto">
+                    <PlatformSettings />
+                  </div>
                 </div>
-              )}
-              <div className="flex-1 h-full flex flex-col bg-card overflow-auto">
-                <div className="flex-1 p-6 overflow-auto">
-                  <PlatformSettings />
-                </div>
-              </div>
-            </>
-          )}
+              </>
+            )}
 
-          {/* Inbox View */}
-          {currentView === 'inbox' && !settingsOpen && (
-            <>
-              {/* Mobile: Either show contact list OR chat view, but not both */}
-              {isMobile && selectedContact ? (
-                <div className="flex-1 h-full w-full bg-chat">
-                  {activeContactList === 'whatsapp' ? (
-                    <WhatsAppChatView
-                      selectedContact={selectedContact}
-                      onContactUpdate={(updatedContact) => {
-                        if (selectedContact) {
-                          setSelectedContact({ ...selectedContact, ...updatedContact });
-                        }
-                      }}
-                      onClose={handleChatClose}
-                    />
-                  ) : activeContactList === 'telegram' ? (
-                    <div className="flex-1 h-full rounded-lg">
-                      <TelegramChatView
+            {/* Inbox View */}
+            {currentView === 'inbox' && !settingsOpen && (
+              <>
+                {/* Mobile: Either show contact list OR chat view, but not both */}
+                {isMobile && selectedContact ? (
+                  <div className="flex-1 h-full w-full bg-chat">
+                    {activeContactList === 'whatsapp' ? (
+                      <WhatsAppChatView
                         selectedContact={selectedContact}
                         onContactUpdate={(updatedContact) => {
                           if (selectedContact) {
@@ -706,102 +1065,114 @@ export default function Page() {
                         }}
                         onClose={handleChatClose}
                       />
-                    </div>
-                  ) : (
-                    // Fallback content in case neither WhatsApp nor Telegram is active
-                    <div className="flex items-center justify-center h-full p-4 text-center">
-                      <div>
-                        <p className="text-muted-foreground mb-4">No active chat selected or invalid platform.</p>
-                        <Button variant="outline" onClick={handleChatClose}>
-                          Return to contacts
-                        </Button>
+                    ) : activeContactList === 'telegram' ? (
+                      <div className="flex-1 h-full rounded-lg">
+                        <TelegramChatView
+                          selectedContact={selectedContact}
+                          onContactUpdate={(updatedContact) => {
+                            if (selectedContact) {
+                              setSelectedContact({ ...selectedContact, ...updatedContact });
+                            }
+                          }}
+                          onClose={handleChatClose}
+                        />
                       </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* Desktop layout OR Mobile contact list view */}
-                  <div
-                    style={{
-                      width: !isMobile && selectedContact ? '35%' : '100%',
-                      transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
-                    }}
-                    className="h-full flex flex-col bg-background"
-                  >
-                    <div className="flex-1 flex flex-col p-4 overflow-auto rounded-lg">
-                      {/* Inbox content */}
-                      {!isPlatformConnected && (
-                        <div className="flex flex-col items-center justify-center h-full gap-6">
-                          <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
-                          <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
-                          </div>
-                          <p className="text-muted-foreground text-center text-lg">
-                            No platforms connected, go ahead and connect to a platform in Settings
-                          </p>
+                    ) : (
+                      // Fallback content in case neither WhatsApp nor Telegram is active
+                      <div className="flex items-center justify-center h-full p-4 text-center">
+                        <div>
+                          <p className="text-muted-foreground mb-4">No active chat selected or invalid platform.</p>
+                          <Button variant="outline" onClick={handleChatClose}>
+                            Return to contacts
+                          </Button>
                         </div>
-                      )}
-                      {isPlatformConnected && !activeContactList && (
-                        <div className="flex flex-col gap-6">
-                          <div className="rounded-lg overflow-hidden">
-                            <div className="p-6 pb-8">
-                              <PlatformsInfo onStartSync={handleStartSync} />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* Desktop layout OR Mobile contact list view */}
+                    <div
+                      style={{
+                        width: !isMobile && selectedContact ? '35%' : '100%',
+                        transition: isResizing ? 'none' : 'width 0.2s ease-in-out',
+                      }}
+                      className="h-full flex flex-col bg-background"
+                    >
+                      <div className="flex-1 flex flex-col p-4 overflow-auto rounded-lg">
+                        {/* Inbox content */}
+                        {!isPlatformConnected && (
+                          <div className="flex flex-col items-center justify-center h-full gap-6">
+                            <div className="w-full max-w-md rounded-lg overflow-hidden mb-4">
+                            <img src="https://cdni.iconscout.com/illustration/premium/thumb/nothing-here-yet-illustration-download-in-svg-png-gif-file-formats--404-page-not-found-planet-space-empty-state-pack-science-technology-illustrations-6763396.png" alt="NP"/>
+                            </div>
+                            <p className="text-muted-foreground text-center text-lg">
+                              No platforms connected, go ahead and connect to a platform in Settings
+                            </p>
+                          </div>
+                        )}
+                        {isPlatformConnected && !activeContactList && (
+                          <div className="flex flex-col gap-6">
+                            <div className="rounded-lg overflow-hidden">
+                              <div className="p-6 pb-8">
+                                <PlatformsInfo onStartSync={handleStartSync} />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                      {activeContactList === 'whatsapp' && (
-                        <WhatsappContactList
-                          onContactSelect={handleContactSelect}
-                          selectedContactId={selectedContactId}
-                        />
-                      )}
-                      {activeContactList === 'telegram' && (
-                        <TelegramContactList
-                          onContactSelect={handleContactSelect}
-                          selectedContactId={selectedContactId}
-                        />
-                      )}
+                        )}
+                        {activeContactList === 'whatsapp' && (
+                          <WhatsappContactList
+                            onContactSelect={handleContactSelect}
+                            selectedContactId={selectedContactId}
+                          />
+                        )}
+                        {activeContactList === 'telegram' && (
+                          <TelegramContactList
+                            onContactSelect={handleContactSelect}
+                            selectedContactId={selectedContactId}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  {/* Chat view for desktop */}
-                  {!isMobile && selectedContact && (
-                    <div className="flex-1 h-full">
-                      {activeContactList === 'whatsapp' ? (
-                        <div className="flex-1 h-full rounded-lg whatsapp-glowing-border">
-                          <WhatsAppChatView
-                            selectedContact={selectedContact}
-                            onContactUpdate={(updatedContact) => {
-                              if (selectedContact) {
-                                setSelectedContact({ ...selectedContact, ...updatedContact });
-                              }
-                            }}
-                            onClose={handleChatClose}
-                          />
-                        </div>
-                      ) : activeContactList === 'telegram' ? (
-                        <div className="flex-1 h-full rounded-lg">
-                          <TelegramChatView
-                            selectedContact={selectedContact}
-                            onContactUpdate={(updatedContact) => {
-                              if (selectedContact) {
-                                setSelectedContact({ ...selectedContact, ...updatedContact });
-                              }
-                            }}
-                            onClose={handleChatClose}
-                          />
-                        </div>
-                      ) : null}
+                    
+                    {/* Chat view for desktop */}
+                    {!isMobile && selectedContact && (
+                      <div className="flex-1 h-full">
+                        {activeContactList === 'whatsapp' ? (
+                          <div className="flex-1 h-full rounded-lg whatsapp-glowing-border">
+                            <WhatsAppChatView
+                              selectedContact={selectedContact}
+                              onContactUpdate={(updatedContact) => {
+                                if (selectedContact) {
+                                  setSelectedContact({ ...selectedContact, ...updatedContact });
+                                }
+                              }}
+                              onClose={handleChatClose}
+                            />
+                          </div>
+                        ) : activeContactList === 'telegram' ? (
+                          <div className="flex-1 h-full rounded-lg">
+                            <TelegramChatView
+                              selectedContact={selectedContact}
+                              onContactUpdate={(updatedContact) => {
+                                if (selectedContact) {
+                                  setSelectedContact({ ...selectedContact, ...updatedContact });
+                                }
+                              }}
+                              onClose={handleChatClose}
+                            />
+                          </div>
+                        ) : null}
 
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
+    </>
   );
 }

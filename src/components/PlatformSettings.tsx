@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import '@/index.css'
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Loader2, Images, HelpCircle, BookOpen } from "lucide-react";
+import { RefreshCw, Loader2, Images, HelpCircle, BookOpen, Shield, AlertTriangle } from "lucide-react";
 import platformManager from '@/services/PlatformManager';
 import { useSelector } from 'react-redux';
 import WhatsAppBridgeSetup, { resetWhatsappSetupFlags } from '@/components/platforms/whatsapp/whatsappBridgeSetup';
@@ -19,6 +19,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from "@/components/ui/sheet";
 import TelegramBridgeSetup, { resetTelegramSetupFlags } from './platforms/telegram/telegramBridgeSetup';
 import logger from '@/utils/logger';
 import { useDispatch } from 'react-redux';
@@ -209,25 +217,15 @@ const PlatformSettings = () => {
   const handleTogglePlatform = async (platform: string, enabled: boolean) => {
     try {
       if (enabled) {
-        // Set initializing state
-        setInitializingPlatform(platform);
-        
-        if (platform === 'whatsapp') {
-          // Show WhatsApp setup instead of directly initializing
-          setShowWhatsAppSetup(true);
-          return;
-        } else if (platform === 'telegram') {
-          // Reset Telegram setup flags before showing setup
-          logger.info('[PlatformSettings] Resetting Telegram setup flags before initialization');
-          resetTelegramSetupFlags(true);
-          // Show Telegram setup instead of directly initializing
-          setShowTelegramSetup(true);
-          return;
-        }
-        
-        // Attempt to switch to this platform
-        await platformManager.switchPlatform(platform);
-        setActivePlatforms(platformManager.getAllActivePlatforms());
+        // Emit event to MainLayout to show Terms & Conditions sheet
+        window.dispatchEvent(new CustomEvent('platform-terms-required', {
+          detail: {
+            platform: platform,
+            timestamp: Date.now()
+          }
+        }));
+        logger.info(`[PlatformSettings] Emitted platform-terms-required event for ${platform}`);
+        return;
       } else if (platformManager.isPlatformActive(platform)) {
         // If disabling WhatsApp or Telegram, show confirmation dialog
         if (platform === 'whatsapp') {
@@ -254,46 +252,28 @@ const PlatformSettings = () => {
     }
   };
 
-  // Handle WhatsApp setup completion
-  const handleWhatsAppSetupComplete = () => {
-    setShowWhatsAppSetup(false);
-    setInitializingPlatform(null);
-    // Update the active platforms list after setup completion
-    setActivePlatforms(platformManager.getAllActivePlatforms());
-  };
+  // Listen for terms acceptance from MainLayout
+  useEffect(() => {
+    const handleTermsAccepted = (event: CustomEvent) => {
+      const { platform } = event.detail;
+      logger.info(`[PlatformSettings] Terms accepted for ${platform}, starting setup`);
+      
+      setInitializingPlatform(platform);
+      
+      if (platform === 'whatsapp') {
+        setShowWhatsAppSetup(true);
+      } else if (platform === 'telegram') {
+        resetTelegramSetupFlags(true);
+        setShowTelegramSetup(true);
+      }
+    };
 
-  // Handle WhatsApp setup cancellation
-  const handleWhatsAppSetupCancel = () => {
-    setShowWhatsAppSetup(false);
-    setInitializingPlatform(null);
-    logger.info('[PlatformSettings] WhatsApp setup cancelled, resetting flags.');
-    resetWhatsappSetupFlags(true);
-  };
-
-  // Handle Telegram setup completion
-  const handleTelegramSetupComplete = () => {
-    setShowTelegramSetup(false);
-    setInitializingPlatform(null);
-    // Update the active platforms list after setup completion
-    setActivePlatforms(platformManager.getAllActivePlatforms());
-  };
-
-  // Handle Telegram setup cancellation
-  const handleTelegramSetupCancel = () => {
-    setShowTelegramSetup(false);
-    setInitializingPlatform(null);
-    logger.info('[PlatformSettings] Telegram setup cancelled, resetting flags.');
-    resetTelegramSetupFlags(true);
-  };
-
-  // Add the missing confirmDisconnect function
-  const confirmDisconnect = () => {
-    if (disconnectingPlatform === 'whatsapp') {
-      handleDisconnectWhatsApp();
-    } else if (disconnectingPlatform === 'telegram') {
-      handleDisconnectTelegram();
-    }
-  };
+    window.addEventListener('platform-terms-accepted', handleTermsAccepted as EventListener);
+    
+    return () => {
+      window.removeEventListener('platform-terms-accepted', handleTermsAccepted as EventListener);
+    };
+  }, []);
 
   // Handle refreshing all platform connections
   const handleRefreshAll = async () => {
@@ -389,8 +369,16 @@ const PlatformSettings = () => {
           {showWhatsAppSetup && (
             <div className="mt-8">
               <WhatsAppBridgeSetup 
-                onComplete={handleWhatsAppSetupComplete}
-                onCancel={handleWhatsAppSetupCancel}
+                onComplete={() => {
+                  setShowWhatsAppSetup(false);
+                  setInitializingPlatform(null);
+                  setActivePlatforms(platformManager.getAllActivePlatforms());
+                }}
+                onCancel={() => {
+                  setShowWhatsAppSetup(false);
+                  setInitializingPlatform(null);
+                  resetWhatsappSetupFlags(true);
+                }}
                 relogin={false}
               />
             </div>
@@ -400,8 +388,16 @@ const PlatformSettings = () => {
           {showTelegramSetup && (
             <div className="mt-8">
               <TelegramBridgeSetup 
-                onComplete={handleTelegramSetupComplete}
-                onCancel={handleTelegramSetupCancel}
+                onComplete={() => {
+                  setShowTelegramSetup(false);
+                  setInitializingPlatform(null);
+                  setActivePlatforms(platformManager.getAllActivePlatforms());
+                }}
+                onCancel={() => {
+                  setShowTelegramSetup(false);
+                  setInitializingPlatform(null);
+                  resetTelegramSetupFlags(true);
+                }}
                 relogin={false}
               />
             </div>
@@ -419,7 +415,13 @@ const PlatformSettings = () => {
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction 
-                  onClick={confirmDisconnect}
+                  onClick={() => {
+                    if (disconnectingPlatform === 'whatsapp') {
+                      handleDisconnectWhatsApp();
+                    } else if (disconnectingPlatform === 'telegram') {
+                      handleDisconnectTelegram();
+                    }
+                  }}
                   className="bg-red-600 text-white hover:bg-red-700"
                   disabled={isDisconnecting}
                 >

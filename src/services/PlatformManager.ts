@@ -34,11 +34,15 @@ interface PlatformState {
 }
 
 /**
- * API Status Response type
+ * API Status Response type - Updated to match new backend API structure
  */
 interface PlatformStatusResponse {
-  status: 'active' | 'inactive' | 'error';
-  verified?: boolean;
+  status: 'never_connected' | 'active' | 'inactive' | 'error' | 'unknown';
+  message: string;
+  isLoggedIn: boolean;
+  hasMatrixAccount: boolean;
+  phoneNumber: string | null;
+  verified: boolean;
   data?: any;
 }
 
@@ -56,11 +60,19 @@ class PlatformManager {
   private isVerifyingConnection: boolean = false;
   private lastApiCheck: Map<string, number> = new Map(); // Track last API check per platform
   private readonly API_CHECK_COOLDOWN = 5000; // 5 seconds cooldown between API checks
+  private apiFailureCount: Map<string, number> = new Map(); // Track API failures per platform
+  private lastApiFailure: Map<string, number> = new Map();
+  private readonly MAX_RETRIES = 3; // Maximum retry attempts
+  private readonly BASE_BACKOFF_MS = 1000; // Base backoff time in milliseconds
+  // CRITICAL FIX: Add global flag to prevent multiple simultaneous never-connected checks
+  private isCheckingNeverConnected: boolean = false;
 
   constructor() {
     this.activePlatform = null;
     this.platformStates = new Map();
     this.lastApiCheck = new Map();
+    this.apiFailureCount = new Map();
+    this.isCheckingNeverConnected = false;
     // this.platformInitializers = {  -- deprecated client side handlers
     //   'telegram': this.initializeTelegram.bind(this),
     //   'whatsapp': this.initializeWhatsApp.bind(this)
@@ -70,7 +82,46 @@ class PlatformManager {
     //   'whatsapp': this.cleanupWhatsApp.bind(this)
     // };
 
-    logger.info('[PlatformManager] Service initialized with real-time API verification');
+    logger.info('[PlatformManager] Service initialized with real-time API verification and exponential backoff');
+  }
+
+  /**
+   * Calculate exponential backoff with jitter
+   * @param {number} attempt - Current attempt number (0-based)
+   * @returns {number} Backoff time in milliseconds
+   */
+  private calculateBackoff(attempt: number): number {
+    // Exponential backoff: base * (2^attempt) + random jitter
+    const exponentialDelay = this.BASE_BACKOFF_MS * Math.pow(2, attempt);
+    const jitter = Math.random() * 1000; // Add up to 1 second of jitter
+    return Math.min(exponentialDelay + jitter, 30000); // Cap at 30 seconds
+  }
+
+  /**
+   * Check if we should retry API call based on failure count
+   * @param {string} platform - Platform to check
+   * @returns {boolean} Whether to retry
+   */
+  private shouldRetryApiCall(platform: string): boolean {
+    const failureCount = this.apiFailureCount.get(platform) || 0;
+    return failureCount < this.MAX_RETRIES;
+  }
+
+  /**
+   * Reset API failure count for platform
+   * @param {string} platform - Platform to reset
+   */
+  private resetApiFailureCount(platform: string): void {
+    this.apiFailureCount.set(platform, 0);
+  }
+
+  /**
+   * Increment API failure count for platform
+   * @param {string} platform - Platform to increment
+   */
+  private incrementApiFailureCount(platform: string): void {
+    const currentCount = this.apiFailureCount.get(platform) || 0;
+    this.apiFailureCount.set(platform, currentCount + 1);
   }
 
   /**
@@ -112,32 +163,69 @@ class PlatformManager {
    */
   private async checkPlatformStatusAPI(platform: string): Promise<PlatformStatusResponse> {
     try {
+      // Check if we should retry based on failure count
+      if (!this.shouldRetryApiCall(platform)) {
+        logger.warn(`[PlatformManager] Max retries exceeded for ${platform}, skipping API call`);
+        throw new Error(`Max retries exceeded for ${platform}`);
+      }
+
       // Check cooldown to avoid excessive API calls
       const lastCheck = this.lastApiCheck.get(platform) || 0;
       const now = Date.now();
-      if (now - lastCheck < this.API_CHECK_COOLDOWN) {
-        logger.debug(`[PlatformManager] API check for ${platform} is on cooldown`);
+      
+      // Calculate dynamic cooldown based on failure count
+      const failureCount = this.apiFailureCount.get(platform) || 0;
+      const dynamicCooldown = failureCount > 0 ? this.calculateBackoff(failureCount - 1) : this.API_CHECK_COOLDOWN;
+      
+      if (now - lastCheck < dynamicCooldown) {
+        logger.debug(`[PlatformManager] API check for ${platform} is on cooldown (${Math.round((dynamicCooldown - (now - lastCheck)) / 1000)}s remaining)`);
         throw new Error(`API check on cooldown for ${platform}`);
       }
 
-      logger.info(`[PlatformManager] Checking ${platform} status via API`);
+      logger.info(`[PlatformManager] Checking ${platform} status via API (attempt ${failureCount + 1}/${this.MAX_RETRIES})`);
 
-      // Use the api utility instead of fetch() to ensure correct backend URL and authentication
+      // CRITICAL FIX: Use correct API endpoint path
       const response = await api.get(`/api/v1/matrix/${platform}/status`);
 
       this.lastApiCheck.set(platform, now);
+      
+      // Reset failure count on successful API call
+      this.resetApiFailureCount(platform);
 
       logger.info(`[PlatformManager] API response for ${platform}:`, response.data);
 
+      // Handle the new API response structure
+      const apiData = response.data;
+      
       return {
-        status: response.data?.status === 'active' ? 'active' : 'inactive',
-        verified: true,
-        data: response.data
+        status: apiData?.status || 'unknown',
+        message: apiData?.message || 'Unknown status',
+        isLoggedIn: apiData?.isLoggedIn || false,
+        hasMatrixAccount: apiData?.hasMatrixAccount || false,
+        phoneNumber: apiData?.phoneNumber || null,
+        verified: apiData?.verified !== undefined ? apiData.verified : true,
+        data: apiData
       };
     } catch (error) {
-      logger.error(`[PlatformManager] Error checking ${platform} status via API:`, error);
+      // Increment failure count
+      this.incrementApiFailureCount(platform);
+      const failureCount = this.apiFailureCount.get(platform) || 0;
+      
+      logger.error(`[PlatformManager] Error checking ${platform} status via API (failure ${failureCount}/${this.MAX_RETRIES}):`, error.message);
+      
+      // If we've exceeded max retries, stop trying for a longer period
+      if (failureCount >= this.MAX_RETRIES) {
+        logger.warn(`[PlatformManager] Max retries exceeded for ${platform}, backing off for extended period`);
+        // Set last check to now + extended backoff to prevent further attempts
+        this.lastApiCheck.set(platform, Date.now() + 300000); // 5 minutes
+      }
+      
       return {
         status: 'error',
+        message: `Failed to check ${platform} status: ${error.message}`,
+        isLoggedIn: false,
+        hasMatrixAccount: false,
+        phoneNumber: null,
         verified: false
       };
     }
@@ -175,15 +263,21 @@ class PlatformManager {
         return false;
       }
 
+      // Determine connection status based on new API response
       const isConnected = apiStatus.status === 'active';
       const statusChanged = currentStatus?.isConnected !== isConnected;
 
       // Update localStorage with API-verified status
       const newStatus = {
         isConnected,
-        verified: apiStatus.verified || false,
+        verified: apiStatus.verified,
         lastVerified: Date.now(),
-        verificationAttempts: 0
+        verificationAttempts: 0,
+        // Store additional API response data
+        hasMatrixAccount: apiStatus.hasMatrixAccount,
+        phoneNumber: apiStatus.phoneNumber,
+        lastStatusCheck: apiStatus.status,
+        statusMessage: apiStatus.message
       };
 
       if (platform === 'whatsapp') {
@@ -192,7 +286,13 @@ class PlatformManager {
         saveTelegramConnectionStatus(userId, newStatus);
       }
 
-      logger.info(`[PlatformManager] Updated ${platform} localStorage status: connected=${isConnected}, verified=${newStatus.verified}, changed=${statusChanged}`);
+      logger.info(`[PlatformManager] Updated ${platform} localStorage status:`, {
+        connected: isConnected,
+        verified: newStatus.verified,
+        hasMatrixAccount: apiStatus.hasMatrixAccount,
+        status: apiStatus.status,
+        changed: statusChanged
+      });
 
       return statusChanged;
     } catch (error) {
@@ -250,16 +350,50 @@ class PlatformManager {
         return false;
       }
 
-      // Step 2: Update localStorage based on API response
+      // Step 2: Handle 'never_connected' status
+      if (apiStatus.status === 'never_connected') {
+        logger.info(`[PlatformManager] User has never connected to ${platform}`);
+        
+        // Dispatch never-connected event for UI to handle
+        window.dispatchEvent(new CustomEvent('platform-never-connected', {
+          detail: {
+            platform,
+            message: apiStatus.message,
+            hasMatrixAccount: apiStatus.hasMatrixAccount,
+            timestamp: Date.now()
+          }
+        }));
+        
+        // Update localStorage to reflect never-connected status
+        this.updateLocalStorageFromAPI(platform, apiStatus);
+        
+        // Dispatch verification end event
+        window.dispatchEvent(new CustomEvent('platform-verification-end', {
+          detail: {
+            platform,
+            success: true,
+            isActive: false,
+            neverConnected: true,
+            timestamp: Date.now()
+          }
+        }));
+        
+        return false;
+      }
+
+      // Step 3: Update localStorage based on API response
       const statusChanged = this.updateLocalStorageFromAPI(platform, apiStatus);
 
-      // Step 3: Dispatch event if status changed
+      // Step 4: Dispatch event if status changed
       if (statusChanged) {
         logger.info(`[PlatformManager] ${platform} connection status changed, dispatching event`);
         window.dispatchEvent(new CustomEvent('platform-connection-changed', {
           detail: {
             platform,
             isActive: apiStatus.status === 'active',
+            status: apiStatus.status,
+            hasMatrixAccount: apiStatus.hasMatrixAccount,
+            phoneNumber: apiStatus.phoneNumber,
             timestamp: Date.now(),
             source: 'api-verification'
           }
@@ -272,6 +406,8 @@ class PlatformManager {
           platform,
           success: true,
           isActive: apiStatus.status === 'active',
+          status: apiStatus.status,
+          hasMatrixAccount: apiStatus.hasMatrixAccount,
           timestamp: Date.now()
         }
       }));
@@ -756,6 +892,65 @@ class PlatformManager {
     } catch (error) {
       logger.error('[PlatformManager] Error checking Telegram verification:', error);
       return false;
+    }
+  }
+
+  /**
+   * Check if user has never connected to any platforms
+   * @returns {Promise<{hasNeverConnected: boolean, platforms: string[]}>} Whether user has never connected and which platforms
+   */
+  async checkForNeverConnectedPlatforms(): Promise<{hasNeverConnected: boolean, platforms: string[]}> {
+    // CRITICAL FIX: Prevent multiple simultaneous checks
+    if (this.isCheckingNeverConnected) {
+      logger.info('[PlatformManager] Never-connected check already in progress, skipping');
+      return {
+        hasNeverConnected: false,
+        platforms: []
+      };
+    }
+
+    const neverConnectedPlatforms: string[] = [];
+    
+    try {
+      this.isCheckingNeverConnected = true;
+      logger.info('[PlatformManager] Checking for never-connected platforms');
+      
+      // Check each platform
+      for (const platform of this.availablePlatforms) {
+        try {
+          const apiStatus = await this.checkPlatformStatusAPI(platform);
+          
+          if (apiStatus.status === 'never_connected') {
+            neverConnectedPlatforms.push(platform);
+            logger.info(`[PlatformManager] ${platform} has never been connected`);
+          }
+        } catch (error) {
+          logger.warn(`[PlatformManager] Could not check ${platform} status for never-connected check:`, error);
+          // If API fails, we can't determine never-connected status, so skip
+        }
+      }
+      
+      const hasNeverConnected = neverConnectedPlatforms.length === this.availablePlatforms.length;
+      
+      logger.info(`[PlatformManager] Never-connected check result:`, {
+        hasNeverConnected,
+        neverConnectedPlatforms,
+        totalPlatforms: this.availablePlatforms.length
+      });
+      
+      return {
+        hasNeverConnected,
+        platforms: neverConnectedPlatforms
+      };
+    } catch (error) {
+      logger.error('[PlatformManager] Error checking for never-connected platforms:', error);
+      return {
+        hasNeverConnected: false,
+        platforms: []
+      };
+    } finally {
+      // CRITICAL FIX: Always reset the flag
+      this.isCheckingNeverConnected = false;
     }
   }
 
