@@ -35,7 +35,9 @@ import {
 } from "@/components/ui/sheet"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FaWhatsapp, FaTelegram } from "react-icons/fa"
+import { NotificationPopover } from "@/components/notifications"
 import platformManager from '@/services/PlatformManager'
+import { TestNotification } from "@/components/TestNotification"
 
 // Define interface for contact objects
 interface Contact {
@@ -832,95 +834,100 @@ export default function Page() {
                 </div>
                 
                 {/* Mobile: Dropdown menu for actions */}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-header-foreground hover:bg-accent flex-shrink-0"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="20"
-                        height="20"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className="h-5 w-5"
+                <div className="flex items-center space-x-2">
+                  {/* Notification Bell - Mobile */}
+                  {isWhatsappActive && <NotificationPopover />}
+                  
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-header-foreground hover:bg-accent flex-shrink-0"
                       >
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="12" cy="5" r="1" />
-                        <circle cx="12" cy="19" r="1" />
-                      </svg>
-                      <span className="sr-only">Menu</span>
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-48">
-                    <div className="space-y-2">
-                      {!settingsOpen && !selectedContact && (
-                        <>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-5 w-5"
+                        >
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="12" cy="5" r="1" />
+                          <circle cx="12" cy="19" r="1" />
+                        </svg>
+                        <span className="sr-only">Menu</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-48">
+                      <div className="space-y-2">
+                        {!settingsOpen && !selectedContact && (
+                          <>
+                            <Button
+                              variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                              size="sm"
+                              onClick={() => handleViewToggle('dashboard')}
+                              className="w-full justify-start"
+                            >
+                              <LayoutDashboard className="h-4 w-4 mr-2" />
+                              Dashboard
+                            </Button>
+                            <Button
+                              variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                              size="sm"
+                              onClick={() => handleViewToggle('inbox')}
+                              className="w-full justify-start"
+                            >
+                              <Inbox className="h-4 w-4 mr-2" />
+                              Inbox
+                            </Button>
+                            <Separator className="my-2" />
+                          </>
+                        )}
+                        {settingsOpen ? (
                           <Button
-                            variant={currentView === 'dashboard' ? 'default' : 'ghost'}
+                            variant="ghost"
                             size="sm"
-                            onClick={() => handleViewToggle('dashboard')}
+                            onClick={() => setSettingsOpen(false)}
                             className="w-full justify-start"
                           >
-                            <LayoutDashboard className="h-4 w-4 mr-2" />
-                            Dashboard
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4 mr-2"
+                            >
+                              <path d="M18 6 6 18" />
+                              <path d="m6 6 12 12" />
+                            </svg>
+                            Close Settings
                           </Button>
+                        ) : (
                           <Button
-                            variant={currentView === 'inbox' ? 'default' : 'ghost'}
+                            variant="ghost"
                             size="sm"
-                            onClick={() => handleViewToggle('inbox')}
+                            onClick={() => setSettingsOpen(true)}
                             className="w-full justify-start"
                           >
-                            <Inbox className="h-4 w-4 mr-2" />
-                            Inbox
+                            <SettingsIcon className="h-4 w-4 mr-2" />
+                            Settings
                           </Button>
-                          <Separator className="my-2" />
-                        </>
-                      )}
-                      {settingsOpen ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSettingsOpen(false)}
-                          className="w-full justify-start"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="h-4 w-4 mr-2"
-                          >
-                            <path d="M18 6 6 18" />
-                            <path d="m6 6 12 12" />
-                          </svg>
-                          Close Settings
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSettingsOpen(true)}
-                          className="w-full justify-start"
-                        >
-                          <SettingsIcon className="h-4 w-4 mr-2" />
-                          Settings
-                        </Button>
-                      )}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </>
             ) : (
               <>
@@ -953,41 +960,46 @@ export default function Page() {
                   {renderHeaderTitle()}
                 </div>
                 
-                {settingsOpen ? (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSettingsOpen(false)}
-                    className="ml-auto text-header-foreground hover:bg-accent"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="24"
-                      height="24"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="h-4 w-4"
+                <div className="flex items-center space-x-2">
+                  {/* Notification Bell - Desktop */}
+                  {isWhatsappActive && <NotificationPopover />}
+                  
+                  {settingsOpen ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSettingsOpen(false)}
+                      className="text-header-foreground hover:bg-accent"
                     >
-                      <path d="M18 6 6 18" />
-                      <path d="m6 6 12 12" />
-                    </svg>
-                    <span className="sr-only">Close</span>
-                  </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setSettingsOpen(true)}
-                    className="ml-auto text-header-foreground hover:bg-accent"
-                  >
-                    <SettingsIcon className="h-5 w-5" />
-                    <span className="sr-only">Settings</span>
-                  </Button>
-                )}
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="h-4 w-4"
+                      >
+                        <path d="M18 6 6 18" />
+                        <path d="m6 6 12 12" />
+                      </svg>
+                      <span className="sr-only">Close</span>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setSettingsOpen(true)}
+                      className="text-header-foreground hover:bg-accent"
+                    >
+                      <SettingsIcon className="h-5 w-5" />
+                      <span className="sr-only">Settings</span>
+                    </Button>
+                  )}
+                </div>
               </>
             )}
           </header>
@@ -1171,6 +1183,9 @@ export default function Page() {
               </>
             )}
           </div>
+          
+          {/* Test Notification Button - Only in development */}
+          {/* {process.env.NODE_ENV === 'development' && <TestNotification />} */}
         </SidebarInset>
       </SidebarProvider>
     </>

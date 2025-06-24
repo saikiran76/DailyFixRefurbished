@@ -1,9 +1,7 @@
+/* Tailwind directives must come first */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100;200;300;400;500;600;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 

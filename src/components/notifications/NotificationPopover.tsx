@@ -1,0 +1,48 @@
+import React, { Suspense } from "react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Bell } from "lucide-react";
+import { NotificationBadge } from "./NotificationBadge";
+import { WhatsAppNotifications } from "./WhatsAppNotifications";
+
+export function NotificationPopover() {
+  return (
+    <Popover>
+      {/* Trigger Button */}
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative text-header-foreground hover:bg-accent"
+        >
+          <Bell className="h-5 w-5" />
+          <NotificationBadge />
+          <span className="sr-only">Notifications</span>
+        </Button>
+      </PopoverTrigger>
+      
+      {/* Popover Content */}
+      <PopoverContent 
+        className="w-80 p-0 bg-popover border-border shadow-lg"
+        align="end"
+        sideOffset={8}
+      >
+        <div className="p-4 border-b border-border">
+          <h3 className="font-semibold text-popover-foreground">Notifications</h3>
+        </div>
+        
+        <div className="max-h-96 overflow-y-auto">
+          <Suspense 
+            fallback={
+              <div className="p-4 text-center text-muted-foreground">
+                Loading notifications...
+              </div>
+            }
+          >
+            <WhatsAppNotifications />
+          </Suspense>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+} 

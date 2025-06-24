@@ -1,10 +1,10 @@
-import React, { ReactNode } from "react";
-import { LiveblocksProvider, ClientSideSuspense } from "@liveblocks/react";
+import React, { type ReactNode } from "react";
+import { LiveblocksProvider, RoomProvider, ClientSideSuspense } from "@liveblocks/react";
 import { getSupabaseClient } from "@/utils/supabase";
+import api from "@/utils/api";
 
 export function LiveblocksProviderWrapper({ children }: { children: ReactNode }) {
   const publicApiKey = "pk_dev_L5LcTYUaZ2MvmlGCAnLsBPrzUsElOV0zVSBH66jcOSuGHwPViUfwoZPDgCa1vo3P";
-  const authEndpoint = "https://survive-instead-deemed-tm.trycloudflare.com/api/v1/liveblocks/auth";
 
   return (
     <LiveblocksProvider 
@@ -20,28 +20,36 @@ export function LiveblocksProviderWrapper({ children }: { children: ReactNode })
           throw new Error("User is not authenticated");
         }
 
-        const response = await fetch(authEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          // Send permissions as an array of strings.
-          body: JSON.stringify({ room, access: ["room:read", "room:write"] }),
-        });
+        try {
+          const response = await api.post("https://dailyfix-api-gateway.duckdns.org/api/v1/liveblocks/auth", {
+            room,
+            userId: session.user.id,
+            userInfo: {
+              name: session.user.user_metadata?.full_name || session.user.email,
+              email: session.user.email,
+            },
+          });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Liveblocks auth failed:", response.status, errorText);
-          throw new Error(`Failed to authenticate with Liveblocks: ${errorText}`);
+          return response.data;
+        } catch (error) {
+          console.error("Liveblocks auth error:", error);
+          throw error;
         }
-
-        return await response.json();
+      }}
+      throttle={16}
+      resolveUsers={async ({ userIds }) => {
+        // Optional: Resolve user info for display
+        return userIds.map(userId => ({
+          name: `User ${userId}`,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+        }));
       }}
     >
-      <ClientSideSuspense fallback={<div>Loading...</div>}>
-        {children}
-      </ClientSideSuspense>
+      <RoomProvider id="notifications" initialPresence={{}}>
+        <ClientSideSuspense fallback={<div>Loading...</div>}>
+          {children}
+        </ClientSideSuspense>
+      </RoomProvider>
     </LiveblocksProvider>
   );
 }
