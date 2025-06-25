@@ -38,6 +38,7 @@ import { FaWhatsapp, FaTelegram } from "react-icons/fa"
 import { NotificationPopover } from "@/components/notifications"
 import platformManager from '@/services/PlatformManager'
 import { TestNotification } from "@/components/TestNotification"
+import type { RootState } from "@/store/store";
 
 // Define interface for contact objects
 interface Contact {
@@ -85,6 +86,9 @@ export default function Page() {
   const [neverConnectedPlatforms, setNeverConnectedPlatforms] = useState<string[]>([])
   const [isCheckingNeverConnected, setIsCheckingNeverConnected] = useState(false)
 
+  // State for pending navigation from notifications
+  const [pendingNavigation, setPendingNavigation] = useState<{ platform: string; contactId: number } | null>(null);
+
   // Terms & Conditions state
   const [showTermsSheet, setShowTermsSheet] = useState(false)
   const [pendingPlatform, setPendingPlatform] = useState<string | null>(null)
@@ -111,10 +115,11 @@ export default function Page() {
     }
   }, [])
   
-  // Get onboarding state from Redux
-  const onboardingState = useSelector((state: any) => state.onboarding)
+  // Get Redux state
+  const onboardingState = useSelector((state: RootState) => state.onboarding)
   const { matrixConnected, whatsappConnected, telegramConnected } = onboardingState
-  const currentUser = useSelector((state: any) => state.auth.session?.user)
+  const currentUser = useSelector((state: RootState) => state.auth.session?.user)
+  const allContacts = useSelector((state: RootState) => state.contacts.items);
   
   // Check if any platform is connected - include telegram in check
   const isTelegramActive = telegramConnected || (currentUser?.id && isTelegramConnected(currentUser.id))
@@ -307,6 +312,135 @@ export default function Page() {
     setTermsAccepted(false);
     logger.info('[MainLayout] Terms & Conditions cancelled');
   };
+
+  // Redux dispatch for actions
+  const dispatch = useDispatch();
+
+  const handleViewToggle = useCallback((view: 'dashboard' | 'inbox') => {
+    setCurrentView(view);
+    // Reset selected contact when switching views
+    setSelectedContactId(null);
+    setSelectedContact(null);
+    // Close settings when switching views
+    setSettingsOpen(false);
+  }, []);
+
+  const handleContactSelect = useCallback((contact: Contact) => {
+    logger.info(`[MainLayout] Contact selected: ${contact.id}, ${contact.display_name}`);
+    console.log('[DEBUG] Contact selected:', contact);
+    console.log('[DEBUG] Current view state:', { isMobile, selectedContactId, activeContactList });
+    
+    setSelectedContactId(contact.id);
+    setSelectedContact(contact);
+    
+    if (isMobile) {
+      console.log('[DEBUG] Forcing mobile chat view update');
+      setTimeout(() => {
+        const updatedState = { isMobile, selectedContactId: contact.id, contact };
+        console.log('[DEBUG] Updated mobile state:', updatedState);
+      }, 100);
+    }
+  }, [isMobile, activeContactList]);
+
+  const handlePlatformSelect = useCallback((platformId: string) => {
+    logger.info(`[MainLayout] Platform selected from sidebar: ${platformId}`);
+    
+    if (platformId === activeContactList) {
+      logger.info(`[MainLayout] Platform ${platformId} is already active, no change needed`);
+      return;
+    }
+    
+    if (platformId === 'whatsapp' && !isWhatsappActive) {
+      toast.error('WhatsApp is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    } 
+    
+    if (platformId === 'telegram' && !isTelegramActive) {
+      toast.error('Telegram is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+    
+    dispatch({ type: 'contacts/reset' });
+    dispatch({ type: 'messages/reset' });
+    
+    setActiveContactList(platformId);
+    setSelectedContactId(null);
+    setSelectedContact(null);
+    
+    localStorage.setItem('dailyfix_active_platform', platformId);
+    window.dispatchEvent(new Event('platform-switched'));
+    toast.success(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
+  }, [activeContactList, isWhatsappActive, isTelegramActive, dispatch]);
+  
+  // Handle chat close
+  const handleChatClose = () => {
+    console.log('[DEBUG] Closing chat view');
+    setSelectedContactId(null);
+    setSelectedContact(null);
+  }
+
+  // Listen for navigation events from notifications
+  useEffect(() => {
+    const handleNavigate = (event: CustomEvent) => {
+      try {
+        const { platform, contactId } = event.detail;
+        const numericContactId = parseInt(contactId, 10);
+        if (isNaN(numericContactId)) {
+          logger.error(`[MainLayout] Invalid contactId received: ${contactId}`);
+          return;
+        }
+
+        logger.info(`[MainLayout] Navigation requested to platform: ${platform}, contact: ${numericContactId}`);
+
+        // Case 1: Already on the correct platform.
+        if (activeContactList === platform) {
+          const contactToSelect = allContacts.find((c: Contact) => c.id === numericContactId);
+          if (contactToSelect) {
+            logger.info(`[MainLayout] Same-platform navigation. Contact found.`);
+            handleViewToggle('inbox');
+            handleContactSelect(contactToSelect);
+          } else {
+            logger.warn(`[MainLayout] Contact ID ${numericContactId} not found on active platform ${platform}.`);
+            toast.error("Contact not found. Try refreshing the contact list.");
+          }
+        } else {
+          // Case 2: Different platform. Defer navigation.
+          logger.info(`[MainLayout] Cross-platform navigation detected. Deferring selection.`);
+          setPendingNavigation({ platform, contactId: numericContactId });
+          handleViewToggle('inbox');
+          handlePlatformSelect(platform); // This will switch UI and trigger data fetching
+        }
+      } catch (e) {
+        logger.error(`[MainLayout] Error handling navigation:`, e);
+      }
+    };
+
+    window.addEventListener('navigate-to-chat', handleNavigate as EventListener);
+    return () => {
+      window.removeEventListener('navigate-to-chat', handleNavigate as EventListener);
+    };
+  }, [allContacts, activeContactList, handleViewToggle, handlePlatformSelect, handleContactSelect]);
+  
+  // This effect handles deferred navigation after a platform switch
+  useEffect(() => {
+    if (pendingNavigation && pendingNavigation.platform === activeContactList && allContacts.length > 0) {
+      const contactToSelect = allContacts.find(c => c.id === pendingNavigation.contactId);
+      
+      if (contactToSelect) {
+        logger.info(`[MainLayout] Executing deferred navigation to contact:`, contactToSelect);
+        handleContactSelect(contactToSelect);
+        setPendingNavigation(null); // Clear after successful navigation
+      } else {
+        // Contacts loaded, but the specific one wasn't there. It might be a sync issue.
+        // We'll log a warning and clear the pending state to prevent loops.
+        logger.warn(`[MainLayout] Deferred navigation failed. Contact ID ${pendingNavigation.contactId} not found in loaded contacts for ${activeContactList}.`);
+        toast.error(`Could not find the notified contact after switching. Please try refreshing.`);
+        setPendingNavigation(null);
+      }
+    }
+  }, [allContacts, activeContactList, pendingNavigation, handleContactSelect]);
   
   // Initialize active contact list based on connected platforms on mount
   useEffect(() => {
@@ -378,89 +512,6 @@ export default function Page() {
     
     // Show confirmation to user
     toast.success(`Switched to ${platform.charAt(0).toUpperCase() + platform.slice(1)}`);
-  }
-  
-  // Handle platform switching from the AppSidebar
-  const handlePlatformSelect = (platformId: string) => {
-    logger.info(`[MainLayout] Platform selected from sidebar: ${platformId}`);
-    
-    // Don't do anything if it's already the active platform
-    if (platformId === activeContactList) {
-      logger.info(`[MainLayout] Platform ${platformId} is already active, no change needed`);
-      return;
-    }
-    
-    // Check if the platform is actually connected before switching
-    if (platformId === 'whatsapp' && !isWhatsappActive) {
-      toast.error('WhatsApp is not connected. Please connect it in settings.');
-      setSettingsOpen(true);
-      return;
-    } 
-    
-    if (platformId === 'telegram' && !isTelegramActive) {
-      toast.error('Telegram is not connected. Please connect it in settings.');
-      setSettingsOpen(true);
-      return;
-    }
-    
-    // Clear all state related to the previous platform
-    dispatch({ type: 'contacts/reset' });
-    dispatch({ type: 'messages/clearAll' });
-    
-    // Set the new active platform
-    setActiveContactList(platformId);
-    
-    // Reset selected contact when changing platform
-    setSelectedContactId(null);
-    setSelectedContact(null);
-    
-    // Save to localStorage for persistence
-    localStorage.setItem('dailyfix_active_platform', platformId);
-    
-    // Dispatch an event to notify contact lists of the switch
-    window.dispatchEvent(new Event('platform-switched'));
-
-    // Show confirmation to user
-    toast.success(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
-  }
-  
-  // Handle contact selection
-  const handleContactSelect = (contact: Contact) => {
-    logger.info(`[MainLayout] Contact selected: ${contact.id}, ${contact.display_name}`);
-    // Add explicit debugging
-    console.log('[DEBUG] Contact selected:', contact);
-    console.log('[DEBUG] Current view state:', { isMobile, selectedContactId, activeContactList });
-    
-    // Set selected contact information
-    setSelectedContactId(contact.id);
-    setSelectedContact(contact);
-    
-    // Force update for mobile view
-    if (isMobile) {
-      console.log('[DEBUG] Forcing mobile chat view update');
-      // Use a slight delay to ensure state updates properly
-      setTimeout(() => {
-        const updatedState = { isMobile, selectedContactId: contact.id, contact };
-        console.log('[DEBUG] Updated mobile state:', updatedState);
-      }, 100);
-    }
-  }
-  
-  // Handle chat close
-  const handleChatClose = () => {
-    console.log('[DEBUG] Closing chat view');
-    setSelectedContactId(null);
-    setSelectedContact(null);
-  }
-
-  // Handle view toggle between dashboard and inbox
-  const handleViewToggle = (view: 'dashboard' | 'inbox') => {
-    setCurrentView(view);
-    // Reset selected contact when switching views
-    setSelectedContactId(null);
-    setSelectedContact(null);
-    // Close settings when switching views
-    setSettingsOpen(false);
   }
   
   // Listen for open-settings events
@@ -551,9 +602,6 @@ export default function Page() {
     }
   }, [isResizing, handleMouseMove, handleMouseUp])
   
-  // Redux dispatch for actions
-  const dispatch = useDispatch();
-
   // Handle never-connected alert actions
   const handleConnectPlatforms = () => {
     setShowNeverConnectedAlert(false);

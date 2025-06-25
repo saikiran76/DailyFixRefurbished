@@ -1,12 +1,12 @@
-import React, { Suspense } from "react";
-import { useInboxNotifications } from "@liveblocks/react/suspense";
+import React, { Suspense, useCallback } from "react";
+import { useInboxNotifications, useMarkInboxNotificationAsRead } from "@liveblocks/react/suspense";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, AtSign, UserPlus, Users, Check, CheckCheck } from "lucide-react";
 import { format } from "date-fns";
 
 // Custom notification renderer for WhatsApp messages
-const WhatsAppMessageNotification = ({ notification }: any) => {
+const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any) => {
   // The core of the fix: activityData is nested inside the 'activities' array
   const activityData = notification?.activities?.[0]?.data;
   const { kind, readAt } = notification;
@@ -104,9 +104,12 @@ const WhatsAppMessageNotification = ({ notification }: any) => {
   });
 
   return (
-    <div className={`flex items-start space-x-3 p-3 rounded-lg transition-colors ${
-      readAt ? 'bg-card opacity-75' : 'bg-accent'
-    }`}>
+    <div
+      className={`flex items-start space-x-3 p-3 rounded-lg transition-colors cursor-pointer hover:bg-primary/10 ${
+        readAt ? 'bg-card opacity-75' : 'bg-accent'
+      }`}
+      onClick={() => onNotificationClick(notification)}
+    >
       <div className="flex-shrink-0 mt-1">
         {getIcon()}
       </div>
@@ -136,27 +139,34 @@ const WhatsAppMessageNotification = ({ notification }: any) => {
 
 // Notifications Content Component (needs Suspense)
 function WhatsAppNotificationsContent() {
-  let inboxNotifications = [];
-  
-  try {
-    const result = useInboxNotifications();
-    inboxNotifications = result.inboxNotifications || [];
-    
-  } catch (error) {
-    console.error("Error fetching inbox notifications:", error);
-    return (
-      <div className="p-8 text-center">
-        <MessageSquare className="h-12 w-12 text-red-500 mx-auto mb-4" />
-        <p className="text-red-600">Error loading notifications</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          Please try refreshing the page
-        </p>
-      </div>
-    );
-  }
-  
+  const { inboxNotifications } = useInboxNotifications();
+  const markInboxNotificationAsRead = useMarkInboxNotificationAsRead();
+
+  const handleNotificationClick = useCallback((notification: any) => {
+    if (!notification.readAt) {
+      markInboxNotificationAsRead(notification.id);
+    }
+
+    if (notification.subjectId) {
+      // Dispatch a custom event to be handled by MainLayout
+      window.dispatchEvent(new CustomEvent('navigate-to-chat', {
+        detail: {
+          platform: 'whatsapp',
+          contactId: notification.subjectId,
+        }
+      }));
+
+      // Also, dispatch an event to close the popover
+      window.dispatchEvent(new CustomEvent('close-notification-popover'));
+      
+      console.log(`[Notifications] Dispatched navigate-to-chat for contact: ${notification.subjectId}`);
+    } else {
+      console.warn('[Notifications] Clicked notification is missing a subjectId', notification);
+    }
+  }, [markInboxNotificationAsRead]);
+
   // Filter out invalid notifications before rendering
-  const validNotifications = inboxNotifications.filter((notification) => {
+  const validNotifications = (inboxNotifications || []).filter((notification) => {
     if (!notification || !notification.id) {
       console.warn("🚨 [FRONTEND] Skipping notification without ID:", notification);
       return false;
@@ -215,6 +225,7 @@ function WhatsAppNotificationsContent() {
         <WhatsAppMessageNotification
           key={notification.id}
           notification={notification}
+          onNotificationClick={handleNotificationClick}
         />
       ))}
     </div>

@@ -20,6 +20,7 @@ import ErrorMessage from '@/components/ui/ErrorMessage';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Virtuoso } from 'react-virtuoso';
 import { Loader2 } from "lucide-react";
+import { useInboxNotifications } from '@liveblocks/react';
 
 // Import shadcn UI components
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -146,9 +147,10 @@ interface ContactItemProps {
   };
   onClick: () => void;
   isSelected: boolean;
+  notificationCount?: number;
 }
 
-const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) => {
+const ContactItem = memo(({ contact, onClick, isSelected, notificationCount }: ContactItemProps) => {
   const dispatch = useDispatch<AppDispatch>();
   const priority = useSelector((state: RootState) => selectContactPriority(state, contact.id));
   const [isEditing, setIsEditing] = useState(false);
@@ -321,11 +323,18 @@ const ContactItem = memo(({ contact, onClick, isSelected }: ContactItemProps) =>
               </>
             )}
           </div>
-          {!isEditing && contact.last_message_at && (
-            <div className="text-muted-foreground text-xs flex-shrink-0">
-                {format(new Date(contact.last_message_at), 'HH:mm')}
-            </div>
-          )}
+          <div className="flex flex-col items-end space-y-1">
+            {contact.last_message_at && (
+              <div className="text-muted-foreground text-xs flex-shrink-0">
+                  {format(new Date(contact.last_message_at), 'HH:mm')}
+              </div>
+            )}
+            {notificationCount && notificationCount > 0 ? (
+              <Badge variant="destructive" className="h-5 w-5 p-0 flex items-center justify-center text-xs rounded-full">
+                {notificationCount}
+              </Badge>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -440,6 +449,9 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
   const loading = useSelector((state: RootState) => state.contacts.loading);
   const error = useSelector((state: RootState) => state.contacts.error);
 
+  // Get notifications from Liveblocks
+  const { inboxNotifications } = useInboxNotifications();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastManualRefreshTime, setLastManualRefreshTime] = useState(0);
   const [syncProgress, setSyncProgress] = useState(null);
@@ -457,6 +469,18 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
   // Platform verification state
   const [isVerifyingPlatform, setIsVerifyingPlatform] = React.useState(false);
   const [verificationMessage, setVerificationMessage] = React.useState('');
+
+  const unreadNotificationCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (inboxNotifications) {
+      for (const notification of inboxNotifications) {
+        if (!notification.readAt && "subjectId" in notification && notification.subjectId) {
+          counts[notification.subjectId] = (counts[notification.subjectId] || 0) + 1;
+        }
+      }
+    }
+    return counts;
+  }, [inboxNotifications]);
 
   const loadContactsWithRetry = useCallback(async (retryCount = 0) => {
     try {
@@ -554,7 +578,7 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
           }));
         }
       }
-    }, 60000); // 1 minute timeout
+    }, 60000);
 
     try {
       setIsRefreshing(true);
@@ -1359,27 +1383,31 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
           <Virtuoso
             style={{ height: '100%' }}
             data={searchedContacts}
-            itemContent={(index, contact) => (
-              <div
-                key={contact.id}
-                className="cursor-pointer active:bg-accent hover:bg-accent transition-colors duration-200"
-                onTouchStart={(e) => e.currentTarget.classList.add('bg-accent')}
-                onTouchEnd={(e) => {
-                  e.currentTarget.classList.remove('bg-accent');
-                  e.preventDefault();
-                  handleContactSelect(contact);
-                }}
-              >
-                <ContactItem
-                  contact={contact}
-                  isSelected={contact.id === selectedContactId}
-                  onClick={() => {
-                    console.log('[DEBUG Mobile] Contact clicked:', contact.display_name);
+            itemContent={(index, contact) => {
+              const notificationCount = unreadNotificationCounts[contact.id] || 0;
+              return (
+                <div
+                  key={contact.id}
+                  className="cursor-pointer active:bg-accent hover:bg-accent transition-colors duration-200"
+                  onTouchStart={(e) => e.currentTarget.classList.add('bg-accent')}
+                  onTouchEnd={(e) => {
+                    e.currentTarget.classList.remove('bg-accent');
+                    e.preventDefault();
                     handleContactSelect(contact);
                   }}
-                />
-              </div>
-            )}
+                >
+                  <ContactItem
+                    contact={contact}
+                    isSelected={contact.id === selectedContactId}
+                    notificationCount={notificationCount}
+                    onClick={() => {
+                      console.log('[DEBUG Mobile] Contact clicked:', contact.display_name);
+                      handleContactSelect(contact);
+                    }}
+                  />
+                </div>
+              );
+            }}
           />
         )}
         

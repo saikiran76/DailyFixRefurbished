@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Bell } from "lucide-react";
@@ -6,8 +6,18 @@ import { NotificationBadge } from "./NotificationBadge";
 import { WhatsAppNotifications } from "./WhatsAppNotifications";
 
 export function NotificationPopover() {
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleClose = () => setIsOpen(false);
+    window.addEventListener('close-notification-popover', handleClose);
+    return () => {
+      window.removeEventListener('close-notification-popover', handleClose);
+    };
+  }, []);
+
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       {/* Trigger Button */}
       <PopoverTrigger asChild>
         <Button

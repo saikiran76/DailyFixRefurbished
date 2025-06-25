@@ -91,22 +91,24 @@ export const refreshMessages = createAsyncThunk<
 );
 
 // Slice definition
+const initialState = {
+  items: {}, // Object instead of Map: { contactId: messages[] }
+  loading: false,
+  error: null,
+  hasMore: true,
+  currentPage: 0,
+  messageQueue: [],
+  unreadMessageIds: [], // Array instead of Set
+  lastKnownMessageIds: {}, // Map of contactId to last message ID
+  newMessagesFetching: false,
+  newMessagesError: null,
+  refreshing: false,
+  refreshError: null
+};
+
 const messageSlice = createSlice({
   name: 'messages',
-  initialState: {
-    items: {}, // Object instead of Map: { contactId: messages[] }
-    loading: false,
-    error: null,
-    hasMore: true,
-    currentPage: 0,
-    messageQueue: [],
-    unreadMessageIds: [], // Array instead of Set
-    lastKnownMessageIds: {}, // Map of contactId to last message ID
-    newMessagesFetching: false,
-    newMessagesError: null,
-    refreshing: false,
-    refreshError: null
-  },
+  initialState,
   reducers: {
     clearMessages: (state) => {
       state.items = {};
@@ -114,9 +116,6 @@ const messageSlice = createSlice({
       state.error = null;
       state.hasMore = true;
       state.currentPage = 0;
-    },
-    clearAll: (state) => {
-      return initialState;
     },
     removeFromMessageQueue: (state, action) => {
       state.messageQueue = state.messageQueue.filter(msg => msg.id !== action.payload);
@@ -331,11 +330,10 @@ const messageSlice = createSlice({
 // Export actions
 export const {
   clearMessages,
-  clearAll,
-  addToMessageQueue,
   removeFromMessageQueue,
   updateMessageStatus,
   messageReceived,
+  addToMessageQueue,
   reset
 } = messageSlice.actions;
 
