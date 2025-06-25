@@ -1021,14 +1021,46 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
           }
         };
 
+        const handleContactRemoved = (data) => {
+          if (data.userId === session.user.id) {
+            logger.info('[WhatsAppContactList] Contact removed by backend via socket:', {
+              contactId: data.contactId,
+              reason: data.reason,
+              message: data.message
+            });
+            
+            // Remove from Redux state
+            dispatch(hideContact(data.contactId));
+            
+            // Clear selection if the removed contact was currently selected
+            if (selectedContactId === data.contactId) {
+              onContactSelect(null);
+            }
+            
+            // Show informative toast with WhatsApp styling
+            toast.success(data.message || 'Contact has been automatically removed', {
+              duration: 6000,
+              style: {
+                background: '#10B981',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.15)',
+              },
+            });
+          }
+        };
+
         socket.on('whatsapp:sync_progress', handleSyncProgress);
         socket.on('whatsapp:sync_complete', handleSyncComplete);
         socket.on('whatsapp:sync_error', handleSyncError);
+        socket.on('whatsapp:contact:removed', handleContactRemoved);
 
         return () => {
           socket.off('whatsapp:sync_progress', handleSyncProgress);
           socket.off('whatsapp:sync_complete', handleSyncComplete);
           socket.off('whatsapp:sync_error', handleSyncError);
+          socket.off('whatsapp:contact:removed', handleContactRemoved);
         };
       } catch (error) {
         logger.error('[WhatsAppContactList] Socket initialization error:', error);

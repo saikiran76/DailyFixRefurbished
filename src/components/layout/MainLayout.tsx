@@ -884,7 +884,8 @@ export default function Page() {
                 {/* Mobile: Dropdown menu for actions */}
                 <div className="flex items-center space-x-2">
                   {/* Notification Bell - Mobile */}
-                  {isWhatsappActive && <NotificationPopover />}
+                  {(isWhatsappActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
+                  {(isTelegramActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
                   
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1010,7 +1011,8 @@ export default function Page() {
                 
                 <div className="flex items-center space-x-2">
                   {/* Notification Bell - Desktop */}
-                  {isWhatsappActive && <NotificationPopover />}
+                  {(isWhatsappActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
+                  {(isTelegramActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
                   
                   {settingsOpen ? (
                     <Button

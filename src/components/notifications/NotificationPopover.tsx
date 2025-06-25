@@ -4,8 +4,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Bell } from "lucide-react";
 import { NotificationBadge } from "./NotificationBadge";
 import { WhatsAppNotifications } from "./WhatsAppNotifications";
+import { TelegramNotifications } from "./TelegramNotifications";
 
-export function NotificationPopover() {
+interface NotificationPopoverProps {
+  platform?: 'whatsapp' | 'telegram';
+}
+
+export function NotificationPopover({ platform = 'whatsapp' }: NotificationPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
@@ -15,6 +20,26 @@ export function NotificationPopover() {
       window.removeEventListener('close-notification-popover', handleClose);
     };
   }, []);
+
+  const renderNotifications = () => {
+    switch (platform) {
+      case 'telegram':
+        return <TelegramNotifications />;
+      case 'whatsapp':
+      default:
+        return <WhatsAppNotifications />;
+    }
+  };
+
+  const getTitle = () => {
+    switch (platform) {
+      case 'telegram':
+        return 'Telegram Notifications';
+      case 'whatsapp':
+      default:
+        return 'WhatsApp Notifications';
+    }
+  };
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -26,7 +51,7 @@ export function NotificationPopover() {
           className="relative text-header-foreground hover:bg-accent"
         >
           <Bell className="h-5 w-5" />
-          <NotificationBadge />
+          <NotificationBadge platform={platform} />
           <span className="sr-only">Notifications</span>
         </Button>
       </PopoverTrigger>
@@ -38,7 +63,7 @@ export function NotificationPopover() {
         sideOffset={8}
       >
         <div className="p-4 border-b border-border">
-          <h3 className="font-semibold text-popover-foreground">Notifications</h3>
+          <h3 className="font-semibold text-popover-foreground">{getTitle()}</h3>
         </div>
         
         <div className="max-h-96 overflow-y-auto">
@@ -49,7 +74,7 @@ export function NotificationPopover() {
               </div>
             }
           >
-            <WhatsAppNotifications />
+            {renderNotifications()}
           </Suspense>
         </div>
       </PopoverContent>

@@ -947,14 +947,46 @@ const TelegramContactList = ({ onContactSelect, selectedContactId }: TelegramCon
           }
         };
 
+        const handleContactRemoved = (data) => {
+          if (data.userId === session.user.id) {
+            logger.info('[TelegramContactList] Contact removed by backend via socket:', {
+              contactId: data.contactId,
+              reason: data.reason,
+              message: data.message
+            });
+            
+            // Remove from Redux state
+            dispatch(hideContact(data.contactId));
+            
+            // Clear selection if the removed contact was currently selected
+            if (selectedContactId === data.contactId) {
+              onContactSelect(null);
+            }
+            
+            // Show informative toast with Telegram styling
+            toast.success(data.message || 'Contact has been automatically removed', {
+              duration: 6000,
+              style: {
+                background: '#3B82F6',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                boxShadow: '0 4px 12px rgba(59, 130, 246, 0.15)',
+              },
+            });
+          }
+        };
+
         socket.on('telegram:sync_progress', handleSyncProgress);
         socket.on('telegram:sync_complete', handleSyncComplete);
         socket.on('telegram:sync_error', handleSyncError);
+        socket.on('telegram:contact:removed', handleContactRemoved);
 
         return () => {
           socket.off('telegram:sync_progress', handleSyncProgress);
           socket.off('telegram:sync_complete', handleSyncComplete);
           socket.off('telegram:sync_error', handleSyncError);
+          socket.off('telegram:contact:removed', handleContactRemoved);
         };
       } catch (error) {
         logger.error('[telegramContactList] Socket initialization error:', error);

@@ -2,17 +2,17 @@ import React, { Suspense, useCallback } from "react";
 import { useInboxNotifications, useMarkInboxNotificationAsRead } from "@liveblocks/react/suspense";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, AtSign, UserPlus, Users, Check, CheckCheck } from "lucide-react";
+import { MessageSquare, AtSign, UserPlus, Users, Check, CheckCheck, Send } from "lucide-react";
 import { format } from "date-fns";
 
-// Custom notification renderer for WhatsApp messages
-const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any) => {
+// Custom notification renderer for Telegram messages
+const TelegramMessageNotification = ({ notification, onNotificationClick }: any) => {
   // The core of the fix: activityData is nested inside the 'activities' array
   const activityData = notification?.activities?.[0]?.data;
   const { kind, readAt } = notification;
 
   // 🔥 DEBUG: Log the exact notification structure being processed
-  console.log('🐛 [FRONTEND DEBUG] Processing notification:', {
+  console.log('🐛 [FRONTEND DEBUG] Processing Telegram notification:', {
     id: notification?.id,
     kind,
     activityData: activityData,
@@ -20,7 +20,7 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
 
   // Defensive programming for the extracted data
   if (!activityData) {
-    console.warn("🚨 [FRONTEND] Notification has no activity data, skipping render.", notification);
+    console.warn("🚨 [FRONTEND] Telegram notification has no activity data, skipping render.", notification);
     return null;
   }
 
@@ -29,16 +29,16 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
   
   const getIcon = () => {
     switch (kind) {
-      case '$whatsappMessage':
-        return <MessageSquare className="h-4 w-4 text-green-600" />;
-      case '$whatsappMention':
+      case '$telegramMessage':
+        return <Send className="h-4 w-4 text-blue-600" />;
+      case '$telegramMention':
         return <AtSign className="h-4 w-4 text-blue-600" />;
-      case '$newContact':
+      case '$telegramNewContact':
         return <UserPlus className="h-4 w-4 text-purple-600" />;
-      case '$groupInvite':
+      case '$telegramGroupInvite':
         return <Users className="h-4 w-4 text-orange-600" />;
       default:
-        return <MessageSquare className="h-4 w-4 text-gray-600" />;
+        return <Send className="h-4 w-4 text-gray-600" />;
     }
   };
 
@@ -48,13 +48,13 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
     const contactName = safeActivityData.contactName || 'Unknown contact';
     
     switch (kind) {
-      case '$whatsappMessage':
+      case '$telegramMessage':
         return `New message from ${sender}`;
-      case '$whatsappMention':
+      case '$telegramMention':
         return `You were mentioned by ${sender}`;
-      case '$newContact':
+      case '$telegramNewContact':
         return `New contact: ${contactName}`;
-      case '$groupInvite':
+      case '$telegramGroupInvite':
         return `Group invite from ${safeActivityData.inviter || 'Unknown'}`;
       default:
         return 'New notification';
@@ -67,12 +67,12 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
     const groupName = safeActivityData.room || 'Unknown group';
     
     switch (kind) {
-      case '$whatsappMessage':
-      case '$whatsappMention':
+      case '$telegramMessage':
+      case '$telegramMention':
         return message;
-      case '$newContact':
+      case '$telegramNewContact':
         return `${contactName} has been added to your contacts`;
-      case '$groupInvite':
+      case '$telegramGroupInvite':
         return `You've been invited to join ${groupName}`;
       default:
         return 'You have a new notification';
@@ -95,8 +95,8 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
     return 'Just now';
   };
 
-  // 🎯 SUCCESS: This is a valid WhatsApp message notification
-  console.log('✅ [FRONTEND] Rendering valid WhatsApp notification:', {
+  // 🎯 SUCCESS: This is a valid Telegram message notification
+  console.log('✅ [FRONTEND] Rendering valid Telegram notification:', {
     kind,
     sender: safeActivityData.sender,
     contact_display_name: safeActivityData.contact_display_name,
@@ -138,7 +138,7 @@ const WhatsAppMessageNotification = ({ notification, onNotificationClick }: any)
 };
 
 // Notifications Content Component (needs Suspense)
-function WhatsAppNotificationsContent() {
+function TelegramNotificationsContent() {
   const { inboxNotifications } = useInboxNotifications();
   const markInboxNotificationAsRead = useMarkInboxNotificationAsRead();
 
@@ -151,7 +151,7 @@ function WhatsAppNotificationsContent() {
       // Dispatch a custom event to be handled by MainLayout
       window.dispatchEvent(new CustomEvent('navigate-to-chat', {
         detail: {
-          platform: 'whatsapp',
+          platform: 'telegram',
           contactId: notification.subjectId,
         }
       }));
@@ -159,36 +159,36 @@ function WhatsAppNotificationsContent() {
       // Also, dispatch an event to close the popover
       window.dispatchEvent(new CustomEvent('close-notification-popover'));
       
-      console.log(`[Notifications] Dispatched navigate-to-chat for contact: ${notification.subjectId}`);
+      console.log(`[Notifications] Dispatched navigate-to-chat for Telegram contact: ${notification.subjectId}`);
     } else {
-      console.warn('[Notifications] Clicked notification is missing a subjectId', notification);
+      console.warn('[Notifications] Clicked Telegram notification is missing a subjectId', notification);
     }
   }, [markInboxNotificationAsRead]);
 
   // Filter out invalid notifications before rendering
   const validNotifications = (inboxNotifications || []).filter((notification) => {
     if (!notification || !notification.id) {
-      console.warn("🚨 [FRONTEND] Skipping notification without ID:", notification);
+      console.warn("🚨 [FRONTEND] Skipping Telegram notification without ID:", notification);
       return false;
     }
     
-    // For now, only show WhatsApp messages until other types are properly implemented
-    if (notification.kind !== '$whatsappMessage') {
-      console.log(`🚨 [FRONTEND] Filtering out non-message notification: ${notification.kind}`);
+    // Only show Telegram messages for now until other types are properly implemented
+    if (notification.kind !== '$telegramMessage') {
+      console.log(`🚨 [FRONTEND] Filtering out non-message Telegram notification: ${notification.kind}`);
       return false;
     }
     
     // The core of the fix: activityData is nested inside the 'activities' array
     const activityData = notification?.activities?.[0]?.data;
 
-    // Ensure WhatsApp messages have required data
-    if (notification.kind === '$whatsappMessage') {
+    // Ensure Telegram messages have required data
+    if (notification.kind === '$telegramMessage') {
       // Use the new `contact_display_name` field for validation
       const hasValidData = activityData && 
                           (activityData.contact_display_name || activityData.sender) && 
                           activityData.message;
       if (!hasValidData) {
-        console.warn("🚨 [FRONTEND] Filtering out WhatsApp message with missing data:", { 
+        console.warn("🚨 [FRONTEND] Filtering out Telegram message with missing data:", { 
           id: notification.id, 
           kind: notification.kind,
           activityData: activityData 
@@ -199,8 +199,8 @@ function WhatsAppNotificationsContent() {
       // Filter out bridge bot notifications
       const displayName = (activityData.contact_display_name || activityData.sender || '').toLowerCase();
       if (displayName.includes('bridge bot') || 
-          displayName.includes('whatsapp bridge') ||
-          displayName.includes('telegram bridge')) {
+          displayName.includes('telegram bridge') ||
+          displayName.includes('whatsapp bridge')) {
         console.log(`🚨 [FRONTEND] Filtering out bridge bot notification from: ${displayName}`);
         return false;
       }
@@ -209,15 +209,15 @@ function WhatsAppNotificationsContent() {
     return true;
   });
   
-  console.log(`🎯 [FRONTEND] Showing ${validNotifications.length} valid notifications out of ${inboxNotifications.length} total`);
+  console.log(`🎯 [FRONTEND] Showing ${validNotifications.length} valid Telegram notifications out of ${inboxNotifications.length} total`);
   
   if (validNotifications.length === 0) {
     return (
       <div className="p-8 text-center">
-        <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+        <Send className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
         <p className="text-muted-foreground">No notifications yet</p>
         <p className="text-sm text-muted-foreground mt-1">
-          You'll see WhatsApp messages here when they arrive
+          You'll see Telegram messages here when they arrive
         </p>
         {inboxNotifications.length > 0 && (
           <p className="text-xs text-orange-600 mt-2">
@@ -231,7 +231,7 @@ function WhatsAppNotificationsContent() {
   return (
     <div className="space-y-1 p-2">
       {validNotifications.map((notification) => (
-        <WhatsAppMessageNotification
+        <TelegramMessageNotification
           key={notification.id}
           notification={notification}
           onNotificationClick={handleNotificationClick}
@@ -241,8 +241,8 @@ function WhatsAppNotificationsContent() {
   );
 }
 
-// Main WhatsApp Notifications Component (with Suspense wrapper)
-export function WhatsAppNotifications() {
+// Main Telegram Notifications Component (with Suspense wrapper)
+export function TelegramNotifications() {
   return (
     <Suspense 
       fallback={
@@ -259,7 +259,7 @@ export function WhatsAppNotifications() {
         </div>
       }
     >
-      <WhatsAppNotificationsContent />
+      <TelegramNotificationsContent />
     </Suspense>
   );
 } 

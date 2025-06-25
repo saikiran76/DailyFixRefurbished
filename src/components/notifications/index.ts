@@ -1,4 +1,5 @@
 // Export individual named exports only
 export { NotificationBadge } from './NotificationBadge';
+export { NotificationPopover } from './NotificationPopover';
 export { WhatsAppNotifications } from './WhatsAppNotifications';
-export { NotificationPopover } from './NotificationPopover'; 
+export { TelegramNotifications } from './TelegramNotifications'; 
