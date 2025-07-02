@@ -8,7 +8,7 @@ import { useSelector } from 'react-redux';
 import WhatsAppBridgeSetup, { resetWhatsappSetupFlags } from '@/components/platforms/whatsapp/whatsappBridgeSetup';
 import { toast } from 'react-hot-toast';
 import api from '@/utils/api';
-import { saveWhatsAppStatus, saveTelegramStatus } from '@/utils/connectionStorage';
+import { saveWhatsAppStatus, saveTelegramStatus, saveInstagramStatus, saveLinkedInStatus } from '@/utils/connectionStorage';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,6 +28,8 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import TelegramBridgeSetup, { resetTelegramSetupFlags } from './platforms/telegram/telegramBridgeSetup';
+import InstagramBridgeSetup, { resetInstagramSetupFlags } from './platforms/instagram/instagramBridgeSetup';
+import LinkedInBridgeSetup, { resetLinkedInSetupFlags } from './platforms/linkedin/linkedinBridgeSetup';
 import logger from '@/utils/logger';
 import { useDispatch } from 'react-redux';
 import { setWhatsappConnected, setTelegramConnected } from '@/store/slices/onboardingSlice';
@@ -47,7 +49,8 @@ const PlatformItem = ({
   requiresAuth,
   isInitializing,
   isDisconnecting,
-  disabled
+  disabled,
+  platformDisabled
 }: { 
   platform: string; 
   isConnected: boolean; 
@@ -59,32 +62,38 @@ const PlatformItem = ({
   isInitializing?: boolean;
   isDisconnecting?: boolean;
   disabled?: boolean;
+  platformDisabled?: boolean;
 }) => {
   return (
-    <div className="flex items-center justify-between px-4 py-6">
+    <div className={`flex items-center justify-between px-4 py-6 ${platformDisabled ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-4">
         <div className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-muted text-foreground">
           {logo}
         </div>
         <div>
           <h3 className="text-base font-medium text-foreground">{title}</h3>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <p className={`text-sm ${platformDisabled ? 'text-orange-400' : 'text-muted-foreground'}`}>
+            {subtitle}
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-3">
-        {requiresAuth && !isConnected && (
+        {platformDisabled && (
+          <span className="text-sm text-orange-500 mr-2">Temporarily unavailable</span>
+        )}
+        {requiresAuth && !isConnected && !platformDisabled && (
           <span className="text-sm text-yellow-500 mr-2">Auth required</span>
         )}
-        {isConnected && (
+        {isConnected && !platformDisabled && (
           <span className="text-sm text-green-500 mr-2">Connected</span>
         )}
-        {isInitializing && (
+        {isInitializing && !platformDisabled && (
           <Loader2 className="h-4 w-4 text-blue-500 animate-spin mr-2" />
         )}
-        {isDisconnecting && (
+        {isDisconnecting && !platformDisabled && (
           <Loader2 className="h-4 w-4 text-red-500 animate-spin mr-2" />
         )}
-        {disabled && !isInitializing && !isDisconnecting && (
+        {disabled && !isInitializing && !isDisconnecting && !platformDisabled && (
           <span className="text-sm text-muted-foreground mr-2">Setup in progress</span>
         )}
         <Checkbox 
@@ -92,7 +101,7 @@ const PlatformItem = ({
           checked={isConnected}
           onCheckedChange={(checked) => onToggle(platform, checked as boolean)}
           className="data-[state=checked]:bg-blue-600"
-          disabled={disabled || isInitializing || isDisconnecting}
+          disabled={disabled || isInitializing || isDisconnecting || platformDisabled}
         />
       </div>
     </div>
@@ -110,6 +119,8 @@ const PlatformSettings = () => {
   const [disconnectingPlatform, setDisconnectingPlatform] = useState<string | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showTelegramSetup, setShowTelegramSetup] = useState(false);
+  const [showInstagramSetup, setShowInstagramSetup] = useState(false);
+  const [showLinkedInSetup, setShowLinkedInSetup] = useState(false);
   const [showWhatsAppBackgroundSettings, setShowWhatsAppBackgroundSettings] = useState(false);
   const [showTelegramBackgroundSettings, setShowTelegramBackgroundSettings] = useState(false);
   
@@ -213,10 +224,97 @@ const PlatformSettings = () => {
     }
   };
 
+  // Handle disconnecting Instagram
+  const handleDisconnectInstagram = async () => {
+    if (!session?.user?.id) {
+      toast.error('You must be logged in to disconnect Instagram');
+      return;
+    }
+    
+    setIsDisconnecting(true);
+    
+    try {
+      // Call the disconnect API
+      const response = await api.post('/api/v1/matrix/instagram/disconnect');
+      
+      // Handle successful disconnect
+      if (response.data && (response.data.status === 'success' || response.status === 200)) {
+        // Update local storage
+        saveInstagramStatus(false, session.user.id);
+        
+        // Update the active platforms list
+        platformManager.cleanupPlatform('instagram');
+        setActivePlatforms(platformManager.getAllActivePlatforms());
+        
+        // Show success message
+        toast.success('Instagram disconnected successfully');
+        
+        // Dispatch an event to notify other components
+        window.dispatchEvent(new CustomEvent('platform-connection-changed'));
+      } else {
+        toast.error('Failed to disconnect Instagram: ' + (response.data?.message || 'Unknown error'));
+      }
+    } catch (error: any) {
+      console.error('Error disconnecting Instagram:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to disconnect Instagram');
+    } finally {
+      setIsDisconnecting(false);
+      setShowDisconnectDialog(false);
+      setDisconnectingPlatform(null);
+    }
+  };
+
+  // Handle disconnecting LinkedIn
+  const handleDisconnectLinkedIn = async () => {
+    if (!session?.user?.id) {
+      toast.error('You must be logged in to disconnect LinkedIn');
+      return;
+    }
+    
+    setIsDisconnecting(true);
+    
+    try {
+      // Call the disconnect API
+      const response = await api.post('/api/v1/matrix/linkedin/disconnect');
+      
+      // Handle successful disconnect
+      if (response.data && (response.data.status === 'success' || response.status === 200)) {
+        // Update local storage
+        saveLinkedInStatus(false, session.user.id);
+        
+        // Update the active platforms list
+        platformManager.cleanupPlatform('linkedin');
+        setActivePlatforms(platformManager.getAllActivePlatforms());
+        
+        // Show success message
+        toast.success('LinkedIn disconnected successfully');
+        
+        // Dispatch an event to notify other components
+        window.dispatchEvent(new CustomEvent('platform-connection-changed'));
+      } else {
+        toast.error('Failed to disconnect LinkedIn: ' + (response.data?.message || 'Unknown error'));
+      }
+    } catch (error: any) {
+      console.error('Error disconnecting LinkedIn:', error);
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to disconnect LinkedIn');
+    } finally {
+      setIsDisconnecting(false);
+      setShowDisconnectDialog(false);
+      setDisconnectingPlatform(null);
+    }
+  };
+
   // Handle toggling a platform on/off
   const handleTogglePlatform = async (platform: string, enabled: boolean) => {
     try {
       if (enabled) {
+        // Check if platform is disabled (like Instagram)
+        const meta = platformMeta[platform as keyof typeof platformMeta];
+        if (meta?.disabled) {
+          toast.error(`${meta.title} is temporarily unavailable. The 3rd party Matrix protocol is not allowing login currently. We're working to bring it back soon.`);
+          return;
+        }
+        
         // Emit event to MainLayout to show Terms & Conditions sheet
         window.dispatchEvent(new CustomEvent('platform-terms-required', {
           detail: {
@@ -236,6 +334,13 @@ const PlatformSettings = () => {
           setDisconnectingPlatform(platform);
           setShowDisconnectDialog(true);
           return;
+        } else if (platform === 'instagram') {
+          setDisconnectingPlatform(platform);
+          setShowDisconnectDialog(true);
+          return;
+        } else if (platform === 'linkedin') {
+          resetLinkedInSetupFlags(true);
+          setShowLinkedInSetup(true);
         }
         
         // For other platforms, clean up directly
@@ -265,6 +370,12 @@ const PlatformSettings = () => {
       } else if (platform === 'telegram') {
         resetTelegramSetupFlags(true);
         setShowTelegramSetup(true);
+      } else if (platform === 'instagram') {
+        resetInstagramSetupFlags(true);
+        setShowInstagramSetup(true);
+      } else if (platform === 'linkedin') {
+        resetLinkedInSetupFlags(true);
+        setShowLinkedInSetup(true);
       }
     };
 
@@ -306,6 +417,19 @@ const PlatformSettings = () => {
       title: 'WhatsApp',
       subtitle: '*****',
       logo: <span className="text-green-400 text-xl">W</span>,
+      requiresAuth: true
+    },
+    'instagram': {
+      title: 'Instagram',
+      subtitle: '3rd party protocol (Matrix) not allowing login currently - coming back soon',
+      logo: <span className="text-pink-400 text-xl">I</span>,
+      requiresAuth: true,
+      disabled: true
+    },
+    'linkedin': {
+      title: 'LinkedIn',
+      subtitle: 'Connect via cURL command (Developer)',
+      logo: <span className="text-blue-500 text-xl">L</span>,
       requiresAuth: true
     }
   };
@@ -355,6 +479,7 @@ const PlatformSettings = () => {
                   isInitializing={initializingPlatform === platform}
                   isDisconnecting={isDisconnecting && disconnectingPlatform === platform}
                   disabled={anySetupInProgress}
+                  platformDisabled={meta.disabled}
                 />
               );
             })}
@@ -402,6 +527,43 @@ const PlatformSettings = () => {
               />
             </div>
           )}
+
+          {/* Instagram Setup Component */}
+          {showInstagramSetup && (
+            <div className="mt-8">
+              <InstagramBridgeSetup 
+                onComplete={() => {
+                  setShowInstagramSetup(false);
+                  setInitializingPlatform(null);
+                  setActivePlatforms(platformManager.getAllActivePlatforms());
+                }}
+                onCancel={() => {
+                  setShowInstagramSetup(false);
+                  setInitializingPlatform(null);
+                  resetInstagramSetupFlags(true);
+                }}
+                relogin={false}
+              />
+            </div>
+          )}
+          
+          {/* LinkedIn Setup Component */}
+          {showLinkedInSetup && (
+            <div className="mt-8">
+              <LinkedInBridgeSetup 
+                onComplete={() => {
+                  setShowLinkedInSetup(false);
+                  setInitializingPlatform(null);
+                  setActivePlatforms(platformManager.getAllActivePlatforms());
+                }}
+                onCancel={() => {
+                  setShowLinkedInSetup(false);
+                  setInitializingPlatform(null);
+                  resetLinkedInSetupFlags(true);
+                }}
+              />
+            </div>
+          )}
           
           {/* Disconnect Confirmation Dialog */}
           <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
@@ -420,6 +582,10 @@ const PlatformSettings = () => {
                       handleDisconnectWhatsApp();
                     } else if (disconnectingPlatform === 'telegram') {
                       handleDisconnectTelegram();
+                    } else if (disconnectingPlatform === 'instagram') {
+                      handleDisconnectInstagram();
+                    } else if (disconnectingPlatform === 'linkedin') {
+                      handleDisconnectLinkedIn();
                     }
                   }}
                   className="bg-red-600 text-white hover:bg-red-700"
@@ -553,8 +719,11 @@ const PlatformSettings = () => {
                       Connect Your Accounts
                     </h3>
                     <p className="text-muted-foreground text-sm ml-8">
-                      Go to the Accounts tab and connect your WhatsApp and Telegram accounts.
+                      Go to the Accounts tab and connect your WhatsApp, Telegram, and LinkedIn accounts.
                       Follow the authentication steps to link your accounts securely.
+                    </p>
+                    <p className="text-orange-400 text-sm ml-8 italic">
+                      Note: Instagram is temporarily unavailable due to 3rd party Matrix protocol issues. We're working to restore it soon.
                     </p>
                   </div>
                   
@@ -591,7 +760,10 @@ const PlatformSettings = () => {
                     <div className="p-3 rounded-lg border border-border bg-muted/30">
                       <h3 className="font-medium text-blue-400 mb-2">Unified Messaging</h3>
                       <p className="text-sm text-muted-foreground">
-                        Manage all your WhatsApp and Telegram conversations in a single interface.
+                        Manage all your WhatsApp, Telegram, and LinkedIn conversations in a single interface.
+                      </p>
+                      <p className="text-xs text-orange-400 mt-1 italic">
+                        Instagram temporarily unavailable due to Matrix protocol issues.
                       </p>
                     </div>
                     

@@ -197,7 +197,7 @@ function TelegramNotificationsContent() {
       }
 
       // Filter out bridge bot notifications
-      const displayName = (activityData.contact_display_name || activityData.sender || '').toLowerCase();
+      const displayName = String(activityData.contact_display_name || activityData.sender || '').toLowerCase();
       if (displayName.includes('bridge bot') || 
           displayName.includes('telegram bridge') ||
           displayName.includes('whatsapp bridge')) {

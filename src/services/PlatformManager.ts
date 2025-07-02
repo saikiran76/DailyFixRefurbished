@@ -7,8 +7,14 @@ import {
   getWhatsAppConnectionStatus,
   isTelegramConnected,
   getTelegramConnectionStatus,
+  isInstagramConnected,
+  getInstagramConnectionStatus,
+  isLinkedInConnected,
+  getLinkedInConnectionStatus,
   saveTelegramConnectionStatus,
-  saveWhatsAppConnectionStatus
+  saveWhatsAppConnectionStatus,
+  saveInstagramConnectionStatus,
+  saveLinkedInConnectionStatus
 } from '../utils/connectionStorage';
 import api from '../utils/api';
 
@@ -52,7 +58,7 @@ interface PlatformStatusResponse {
  */
 class PlatformManager {
   private activePlatform: string | null = null;
-  public availablePlatforms: string[] = ['whatsapp', 'telegram'];
+  public availablePlatforms: string[] = ['whatsapp', 'telegram', 'instagram', 'linkedin'];
   private platformStates: Map<string, PlatformState> = new Map();
   private platformInitializers: { [key: string]: (options?: any) => Promise<boolean> } = {};
   private platformCleanupHandlers: { [key: string]: () => Promise<boolean> } = {};
@@ -258,6 +264,10 @@ class PlatformManager {
         currentStatus = getWhatsAppConnectionStatus(userId);
       } else if (platform === 'telegram') {
         currentStatus = getTelegramConnectionStatus(userId);
+      } else if (platform === 'instagram') {
+        currentStatus = getInstagramConnectionStatus(userId);
+      } else if (platform === 'linkedin') {
+        currentStatus = getLinkedInConnectionStatus(userId);
       } else {
         logger.warn(`[PlatformManager] Unknown platform: ${platform}`);
         return false;
@@ -284,6 +294,10 @@ class PlatformManager {
         saveWhatsAppConnectionStatus(userId, newStatus);
       } else if (platform === 'telegram') {
         saveTelegramConnectionStatus(userId, newStatus);
+      } else if (platform === 'instagram') {
+        saveInstagramConnectionStatus(userId, newStatus);
+      } else if (platform === 'linkedin') {
+        saveLinkedInConnectionStatus(userId, newStatus);
       }
 
       logger.info(`[PlatformManager] Updated ${platform} localStorage status:`, {
@@ -344,6 +358,10 @@ class PlatformManager {
               return isWhatsAppConnected(userId);
             } else if (platform === 'telegram') {
               return isTelegramConnected(userId);
+            } else if (platform === 'instagram') {
+              return isInstagramConnected(userId);
+            } else if (platform === 'linkedin') {
+              return isLinkedInConnected(userId);
             }
           }
         }
@@ -480,6 +498,15 @@ class PlatformManager {
               } else {
                 isConnected = isTelegramConnected(userId);
               }
+            } else if (platform === 'instagram') {
+              if (verifiedOnly) {
+                const status = getInstagramConnectionStatus(userId);
+                isConnected = status?.isConnected && status?.verified;
+              } else {
+                isConnected = isInstagramConnected(userId);
+              }
+            } else if (platform === 'linkedin') {
+              isConnected = isLinkedInConnected(userId);
             }
 
             if (isConnected) {
@@ -823,6 +850,26 @@ class PlatformManager {
             }
           } else if (isTelegramConnected(userId)) {
             activePlatforms.push('telegram');
+          }
+          
+          // Check Instagram connection status with verification if requested
+          if (verifiedOnly) {
+            const instagramStatus = getInstagramConnectionStatus(userId);
+            if (instagramStatus && instagramStatus.isConnected && instagramStatus.verified) {
+              activePlatforms.push('instagram');
+            }
+          } else if (isInstagramConnected(userId)) {
+            activePlatforms.push('instagram');
+          }
+
+          // Check LinkedIn connection status with verification if requested
+          if (verifiedOnly) {
+            const linkedInStatus = getLinkedInConnectionStatus(userId);
+            if (linkedInStatus && linkedInStatus.isConnected && linkedInStatus.verified) {
+              activePlatforms.push('linkedin');
+            }
+          } else if (isLinkedInConnected(userId)) {
+            activePlatforms.push('linkedin');
           }
         }
       }

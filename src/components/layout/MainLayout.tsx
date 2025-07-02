@@ -17,13 +17,18 @@ import PlatformSettings from "@/components/PlatformSettings"
 import PlatformsInfo from "@/components/PlatformsInfo"
 import WhatsappContactList from "@/components/platforms/whatsapp/WhatsappContactList"
 import TelegramContactList from "@/components/platforms/telegram/TelegramContactList"
+import InstagramContactList from "@/components/platforms/instagram/InstagramContactList"
+import LinkedinContactList from "@/components/platforms/linkedin/LinkedinContactList"
 import { ChatViewWithErrorBoundary as WhatsAppChatView } from '@/components/platforms/whatsapp/WhatsappChatView'
 import { ChatViewWithErrorBoundary as TelegramChatView } from '@/components/platforms/telegram/TelegramChatView'
+import InstagramChatView from '@/components/platforms/instagram/InstagramChatView'
+import { ChatViewWithErrorBoundary as LinkedinChatView } from "@/components/platforms/linkedin/LinkedinChatView"
 import Dashboard from '@/components/Dashboard'
-import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage'
+import { isWhatsAppConnected, isTelegramConnected, isInstagramConnected, isLinkedInConnected } from '@/utils/connectionStorage'
 import { toast } from 'react-hot-toast'
 import logger from '@/utils/logger'
 import { useMousePosition } from '@/hooks/useMousePosition'
+import { useNotificationManager } from '@/hooks/useNotificationManager'
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import {
   Sheet,
@@ -39,6 +44,19 @@ import { NotificationPopover } from "@/components/notifications"
 import platformManager from '@/services/PlatformManager'
 import { TestNotification } from "@/components/TestNotification"
 import type { RootState } from "@/store/store";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog"
+import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Menu } from "lucide-react"
 
 // Define interface for contact objects
 interface Contact {
@@ -81,6 +99,16 @@ export default function Page() {
   // State to track window width for responsive design
   const [isMobile, setIsMobile] = useState<boolean>(false)
 
+  // Platform active states
+  const [isWhatsAppActive, setIsWhatsAppActive] = useState<boolean>(false)
+  const [isTelegramActive, setIsTelegramActive] = useState<boolean>(false)
+  const [isInstagramActive, setIsInstagramActive] = useState<boolean>(false)
+  const [isLinkedInActive, setIsLinkedInActive] = useState<boolean>(false)
+  
+  // LinkedIn disconnection alert state
+  const [showLinkedInDisconnectedAlert, setShowLinkedInDisconnectedAlert] = useState(false)
+  const [linkedInConnected, setLinkedInConnected] = useState(false)
+
   // State for never-connected alert dialog
   const [showNeverConnectedAlert, setShowNeverConnectedAlert] = useState(false)
   const [neverConnectedPlatforms, setNeverConnectedPlatforms] = useState<string[]>([])
@@ -93,6 +121,14 @@ export default function Page() {
   const [showTermsSheet, setShowTermsSheet] = useState(false)
   const [pendingPlatform, setPendingPlatform] = useState<string | null>(null)
   const [termsAccepted, setTermsAccepted] = useState(false)
+
+  // Initialize notification manager for sound and browser notifications
+  const notificationManager = useNotificationManager({
+    enableSound: true,
+    enableBrowserNotifications: true,
+    soundVolume: 0.7,
+    useGeneratedTones: true // Skip external audio files and use generated tones
+  });
 
   // Use the mouse position hook for the glow effect
   useMousePosition();
@@ -117,24 +153,28 @@ export default function Page() {
   
   // Get Redux state
   const onboardingState = useSelector((state: RootState) => state.onboarding)
-  const { matrixConnected, whatsappConnected, telegramConnected } = onboardingState
+  const { matrixConnected, whatsappConnected, telegramConnected, instagramConnected } = onboardingState
+  const session = useSelector((state: RootState) => state.auth.session)
   const currentUser = useSelector((state: RootState) => state.auth.session?.user)
   const allContacts = useSelector((state: RootState) => state.contacts.items);
   
-  // Check if any platform is connected - include telegram in check
-  const isTelegramActive = telegramConnected || (currentUser?.id && isTelegramConnected(currentUser.id))
-  const isWhatsappActive = whatsappConnected || (currentUser?.id && isWhatsAppConnected(currentUser.id))
-  const isPlatformConnected = matrixConnected || isWhatsappActive || isTelegramActive
+  // Check if any platform is connected - include all platforms in check
+  const isTelegramConnectedActive = telegramConnected || (currentUser?.id && isTelegramConnected(currentUser.id))
+  const isWhatsappConnectedActive = whatsappConnected || (currentUser?.id && isWhatsAppConnected(currentUser.id))
+  const isInstagramConnectedActive = instagramConnected || (currentUser?.id && isInstagramConnected(currentUser.id))
+  const isLinkedInConnectedActive = currentUser?.id && isLinkedInConnected(currentUser.id)
+  const isPlatformConnected = matrixConnected || isWhatsappConnectedActive || isTelegramConnectedActive || isInstagramConnectedActive || isLinkedInConnectedActive
   
   // Log platform connection states when they change for debugging
   useEffect(() => {
     logger.info('[MainLayout] Platform connection states:', {
-      whatsappActive: isWhatsappActive,
-      telegramActive: isTelegramActive,
+      whatsappActive: isWhatsappConnectedActive,
+      telegramActive: isTelegramConnectedActive,
+      instagramActive: isInstagramConnectedActive,
       activeContactList,
       isPlatformConnected
     });
-  }, [isWhatsappActive, isTelegramActive, activeContactList, isPlatformConnected]);
+  }, [isWhatsappConnectedActive, isTelegramConnectedActive, isInstagramConnectedActive, activeContactList, isPlatformConnected]);
   
   // Check for never-connected platforms when no platforms are detected as connected
   useEffect(() => {
@@ -350,14 +390,20 @@ export default function Page() {
       return;
     }
     
-    if (platformId === 'whatsapp' && !isWhatsappActive) {
+    if (platformId === 'whatsapp' && !isWhatsappConnectedActive) {
       toast.error('WhatsApp is not connected. Please connect it in settings.');
       setSettingsOpen(true);
       return;
     } 
     
-    if (platformId === 'telegram' && !isTelegramActive) {
+    if (platformId === 'telegram' && !isTelegramConnectedActive) {
       toast.error('Telegram is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+
+    if (platformId === 'instagram' && !isInstagramConnectedActive) {
+      toast.error('Instagram is not connected. Please connect it in settings.');
       setSettingsOpen(true);
       return;
     }
@@ -372,7 +418,7 @@ export default function Page() {
     localStorage.setItem('dailyfix_active_platform', platformId);
     window.dispatchEvent(new Event('platform-switched'));
     toast.success(`Switched to ${platformId.charAt(0).toUpperCase() + platformId.slice(1)}`);
-  }, [activeContactList, isWhatsappActive, isTelegramActive, dispatch]);
+  }, [activeContactList, isWhatsappConnectedActive, isTelegramConnectedActive, isInstagramConnectedActive, dispatch]);
   
   // Handle chat close
   const handleChatClose = () => {
@@ -450,8 +496,9 @@ export default function Page() {
       
       if (storedPlatform) {
         // Check if the stored platform is actually connected
-        if ((storedPlatform === 'whatsapp' && isWhatsappActive) || 
-            (storedPlatform === 'telegram' && isTelegramActive)) {
+        if ((storedPlatform === 'whatsapp' && isWhatsappConnectedActive) || 
+            (storedPlatform === 'telegram' && isTelegramConnectedActive) ||
+            (storedPlatform === 'instagram' && isInstagramConnectedActive)) {
           logger.info(`[MainLayout] Restoring previously selected platform: ${storedPlatform}`);
           setActiveContactList(storedPlatform);
           return;
@@ -459,15 +506,18 @@ export default function Page() {
       }
       
       // Only auto-select a platform if we don't have a stored preference
-      if (isTelegramActive) {
+      if (isTelegramConnectedActive) {
         logger.info('[MainLayout] Auto-selecting Telegram as active platform');
         setActiveContactList('telegram');
-      } else if (isWhatsappActive) {
+      } else if (isWhatsappConnectedActive) {
         logger.info('[MainLayout] Auto-selecting WhatsApp as active platform');
         setActiveContactList('whatsapp');
+      } else if (isInstagramConnectedActive) {
+        logger.info('[MainLayout] Auto-selecting Instagram as active platform');
+        setActiveContactList('instagram');
       }
     }
-  }, [isPlatformConnected, isWhatsappActive, isTelegramActive, activeContactList]);
+  }, [isPlatformConnected, isWhatsappConnectedActive, isTelegramConnectedActive, isInstagramConnectedActive, activeContactList]);
   
   // Save the active platform when it changes
   useEffect(() => {
@@ -480,7 +530,7 @@ export default function Page() {
   // Handlers for platform-specific selection
   const handleWhatsAppSelected = () => {
     logger.info('[MainLayout] WhatsApp selected from sidebar');
-    if (!isWhatsappActive) {
+    if (!isWhatsappConnectedActive) {
       toast.error('WhatsApp is not connected. Please connect it in settings.');
       setSettingsOpen(true);
       return;
@@ -492,7 +542,7 @@ export default function Page() {
   
   const handleTelegramSelected = () => {
     logger.info('[MainLayout] Telegram selected from sidebar');
-    if (!isTelegramActive) {
+    if (!isTelegramConnectedActive) {
       toast.error('Telegram is not connected. Please connect it in settings.');
       setSettingsOpen(true);
       return;
@@ -501,18 +551,31 @@ export default function Page() {
     setSelectedContactId(null);
     setSelectedContact(null);
   };
+
+  const handleInstagramSelected = () => {
+    logger.info('[MainLayout] Instagram selected from sidebar');
+    if (!isInstagramConnectedActive) {
+      toast.error('Instagram is not connected. Please connect it in settings.');
+      setSettingsOpen(true);
+      return;
+    }
+    setActiveContactList('instagram');
+    setSelectedContactId(null);
+    setSelectedContact(null);
+  };
   
   // Handle platform sync start
   const handleStartSync = (platform: string) => {
-    logger.info(`[MainLayout] Starting sync for platform: ${platform}`);
-    setActiveContactList(platform);
-    // Reset selected contact when changing platform
-    setSelectedContactId(null);
-    setSelectedContact(null);
-    
-    // Show confirmation to user
-    toast.success(`Switched to ${platform.charAt(0).toUpperCase() + platform.slice(1)}`);
-  }
+    if (platform === 'whatsapp') {
+      handleWhatsAppSelected();
+    } else if (platform === 'telegram') {
+      handleTelegramSelected();
+    } else if (platform === 'instagram') {
+      handleInstagramSelected();
+    } else if (platform === 'linkedin') {
+      handleLinkedInSelected();
+    }
+  };
   
   // Listen for open-settings events
   useEffect(() => {
@@ -620,6 +683,10 @@ export default function Page() {
       return <Send className="h-5 w-5 mr-2 text-blue-400" />;
     } else if (activeContactList === 'whatsapp') {
       return <MessageSquare className="h-5 w-5 mr-2 text-green-500" />;
+    } else if (activeContactList === 'instagram') {
+      return <MessageSquare className="h-5 w-5 mr-2 text-pink-500" />;
+    } else if (activeContactList === 'linkedin') {
+      return <MessageSquare className="h-5 w-5 mr-2 text-blue-600" />;
     }
     return null;
   };
@@ -668,6 +735,125 @@ export default function Page() {
       setSettingsOpen(false)
     }
   }, [location.pathname])
+
+  // Enhanced platform detection with LinkedIn support
+  useEffect(() => {
+    const checkActiveContactList = () => {
+      const activePlatform = localStorage.getItem('dailyfix_active_platform');
+      if (activePlatform === 'whatsapp') {
+        setIsWhatsAppActive(true);
+        setIsTelegramActive(false);
+        setIsInstagramActive(false);
+        setIsLinkedInActive(false);
+      } else if (activePlatform === 'telegram') {
+        setIsTelegramActive(true);
+        setIsWhatsAppActive(false);
+        setIsInstagramActive(false);
+        setIsLinkedInActive(false);
+      } else if (activePlatform === 'instagram') {
+        setIsInstagramActive(true);
+        setIsWhatsAppActive(false);
+        setIsTelegramActive(false);
+        setIsLinkedInActive(false);
+      } else if (activePlatform === 'linkedin') {
+        setIsLinkedInActive(true);
+        setIsWhatsAppActive(false);
+        setIsTelegramActive(false);
+        setIsInstagramActive(false);
+      }
+    };
+
+    checkActiveContactList();
+    
+    const handleStorageChange = () => {
+      checkActiveContactList();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // LinkedIn connection monitoring
+  useEffect(() => {
+    const checkLinkedInConnection = () => {
+      if (!session?.user?.id) return;
+      
+      const connectionStatus = localStorage.getItem('dailyfix_connection_status');
+      if (connectionStatus) {
+        try {
+          const status = JSON.parse(connectionStatus);
+          setLinkedInConnected(status.linkedin === true);
+        } catch (e) {
+          console.error('Error parsing connection status:', e);
+          setLinkedInConnected(false);
+        }
+      } else {
+        setLinkedInConnected(false);
+      }
+    };
+
+    // Check on mount
+    checkLinkedInConnection();
+
+    // Listen for LinkedIn disconnection events
+    const handleLinkedInDisconnected = (event: CustomEvent) => {
+      if (event.detail?.platform === 'linkedin') {
+        setLinkedInConnected(false);
+        setShowLinkedInDisconnectedAlert(true);
+        // If LinkedIn was active, switch to a different platform or show empty state
+        if (isLinkedInActive) {
+          setSelectedContact(null);
+        }
+      }
+    };
+
+    // Listen for LinkedIn connection events
+    const handleLinkedInConnected = (event: CustomEvent) => {
+      if (event.detail?.platform === 'linkedin') {
+        setLinkedInConnected(true);
+        setShowLinkedInDisconnectedAlert(false);
+      }
+    };
+
+    window.addEventListener('linkedin-disconnected', handleLinkedInDisconnected as EventListener);
+    window.addEventListener('linkedin-connected', handleLinkedInConnected as EventListener);
+    window.addEventListener('platform-connection-changed', checkLinkedInConnection);
+
+    return () => {
+      window.removeEventListener('linkedin-disconnected', handleLinkedInDisconnected as EventListener);
+      window.removeEventListener('linkedin-connected', handleLinkedInConnected as EventListener);
+      window.removeEventListener('platform-connection-changed', checkLinkedInConnection);
+    };
+  }, [session?.user?.id, isLinkedInActive]);
+
+  const handleLinkedInSelected = () => {
+    setIsLinkedInActive(true);
+    setIsTelegramActive(false);
+    setIsWhatsAppActive(false);
+    setIsInstagramActive(false);
+    localStorage.setItem('dailyfix_active_platform', 'linkedin');
+    setSelectedContact(null);
+    
+    // Trigger platform change event
+    window.dispatchEvent(new CustomEvent('platform-switched', { 
+      detail: { platform: 'linkedin' } 
+    }));
+  };
+
+  // Update activeContactList based on platform states
+  useEffect(() => {
+    if (isWhatsAppActive) {
+      setActiveContactList('whatsapp');
+    } else if (isTelegramActive) {
+      setActiveContactList('telegram');
+    } else if (isInstagramActive) {
+      setActiveContactList('instagram');
+    } else if (isLinkedInActive) {
+      setActiveContactList('linkedin');
+    } else {
+      setActiveContactList(null);
+    }
+  }, [isWhatsAppActive, isTelegramActive, isInstagramActive, isLinkedInActive]);
 
   return (
     <>
@@ -749,6 +935,23 @@ export default function Page() {
               </div>
             </div>
 
+            {/* Instagram-specific developer warning */}
+            {pendingPlatform === 'instagram' && (
+              <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200 dark:border-orange-800">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-orange-800 dark:text-orange-200 text-sm">Developer Connection Method</h4>
+                    <p className="text-xs text-orange-700 dark:text-orange-300">
+                      Instagram connection uses a <strong>developer-focused cURL method</strong> that requires technical knowledge. 
+                      This method involves copying network requests from your browser's developer tools and is intended for 
+                      advanced users who understand web development concepts.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Terms List */}
             <div className="space-y-3">
               <div className="flex items-start gap-3">
@@ -762,6 +965,46 @@ export default function Page() {
                   </p>
                 </div>
               </div>
+
+              {/* Instagram-specific terms */}
+              {pendingPlatform === 'instagram' && (
+                <>
+                  <div className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-foreground mb-1 text-sm">Developer Method Requirements</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Instagram connection requires you to manually copy cURL commands from your browser's Network tab. 
+                        This method is designed for developers and requires understanding of browser developer tools, 
+                        HTTP requests, and session management.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-foreground mb-1 text-sm">Session Cookie Security</h5>
+                      <p className="text-xs text-muted-foreground">
+                        The cURL command contains your Instagram session cookies. These are used only to authenticate 
+                        your account and are handled securely. Never share your cURL commands with untrusted parties 
+                        as they contain sensitive authentication data.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-pink-500 mt-2 flex-shrink-0" />
+                    <div>
+                      <h5 className="font-medium text-foreground mb-1 text-sm">Technical Support Limitations</h5>
+                      <p className="text-xs text-muted-foreground">
+                        Due to the technical nature of Instagram's connection method, support is limited to users 
+                        with web development experience. Basic browser developer tools knowledge is required.
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
@@ -781,6 +1024,11 @@ export default function Page() {
                   <p className="text-xs text-muted-foreground">
                     All your data is encrypted and stored securely. We do not share your personal information 
                     or chat data with third parties. Your privacy is our top priority.
+                    {pendingPlatform === 'instagram' && (
+                      <span className="block mt-1 font-medium">
+                        For Instagram: Session cookies are processed securely and never logged or stored permanently.
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -813,6 +1061,12 @@ export default function Page() {
                   I understand and accept these terms and conditions. I acknowledge that DailyFix will have 
                   secure access to my {pendingPlatform} contacts and messages for the purpose of providing 
                   messaging management and AI-powered insights.
+                  {pendingPlatform === 'instagram' && (
+                    <span className="block mt-2 font-medium text-orange-600 dark:text-orange-400">
+                      ⚠️ I understand that Instagram connection requires technical knowledge of browser developer tools 
+                      and cURL commands, and I accept responsibility for properly handling my session authentication data.
+                    </span>
+                  )}
                 </label>
               </div>
             </div>
@@ -838,6 +1092,38 @@ export default function Page() {
         </SheetContent>
       </Sheet>
 
+      {/* LinkedIn Disconnection Alert */}
+      <AlertDialog open={showLinkedInDisconnectedAlert} onOpenChange={setShowLinkedInDisconnectedAlert}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-blue-600">
+              <AlertTriangle className="h-5 w-5" />
+              LinkedIn Disconnected
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Your LinkedIn session has expired or been logged out.</p>
+              <p className="text-sm text-muted-foreground">
+                To continue receiving LinkedIn messages, please reconnect your LinkedIn account in Settings.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              Dismiss
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowLinkedInDisconnectedAlert(false);
+                handleSettingsClick();
+              }}
+              className="bg-blue-600 hover:bg-blue-700 focus:ring-blue-600"
+            >
+              Go to Settings
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Main Layout */}
       <SidebarProvider 
         className="h-screen"
@@ -849,6 +1135,7 @@ export default function Page() {
         <AppSidebar
           onWhatsAppSelected={handleWhatsAppSelected}
           onTelegramSelected={handleTelegramSelected}
+          onInstagramSelected={handleInstagramSelected}
           onPlatformSelect={handlePlatformSelect}
           onSettingsSelected={handleSettingsClick}
           onPlatformConnect={handleSettingsClick}
@@ -884,8 +1171,8 @@ export default function Page() {
                 {/* Mobile: Dropdown menu for actions */}
                 <div className="flex items-center space-x-2">
                   {/* Notification Bell - Mobile */}
-                  {(isWhatsappActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
-                  {(isTelegramActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
+                  {(isWhatsappConnectedActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
+                  {(isTelegramConnectedActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
                   
                   <Popover>
                     <PopoverTrigger asChild>
@@ -1011,8 +1298,8 @@ export default function Page() {
                 
                 <div className="flex items-center space-x-2">
                   {/* Notification Bell - Desktop */}
-                  {(isWhatsappActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
-                  {(isTelegramActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
+                  {(isWhatsappConnectedActive && activeContactList === 'whatsapp') && <NotificationPopover platform="whatsapp" />}
+                  {(isTelegramConnectedActive && activeContactList === 'telegram') && <NotificationPopover platform="telegram" />}
                   
                   {settingsOpen ? (
                     <Button
@@ -1118,15 +1405,17 @@ export default function Page() {
                 {isMobile && selectedContact ? (
                   <div className="flex-1 h-full w-full bg-chat">
                     {activeContactList === 'whatsapp' ? (
-                      <WhatsAppChatView
-                        selectedContact={selectedContact}
-                        onContactUpdate={(updatedContact) => {
-                          if (selectedContact) {
-                            setSelectedContact({ ...selectedContact, ...updatedContact });
-                          }
-                        }}
-                        onClose={handleChatClose}
-                      />
+                      <div className="flex-1 h-full rounded-lg">
+                        <WhatsAppChatView
+                          selectedContact={selectedContact}
+                          onContactUpdate={(updatedContact) => {
+                            if (selectedContact) {
+                              setSelectedContact({ ...selectedContact, ...updatedContact });
+                            }
+                          }}
+                          onClose={handleChatClose}
+                        />
+                      </div>
                     ) : activeContactList === 'telegram' ? (
                       <div className="flex-1 h-full rounded-lg">
                         <TelegramChatView
@@ -1139,8 +1428,20 @@ export default function Page() {
                           onClose={handleChatClose}
                         />
                       </div>
+                    ) : activeContactList === 'instagram' ? (
+                      <div className="flex-1 h-full rounded-lg">
+                        <InstagramChatView
+                          contact={selectedContact}
+                          onContactUpdate={(updatedContact) => {
+                            if (selectedContact) {
+                              setSelectedContact({ ...selectedContact, ...updatedContact });
+                            }
+                          }}
+                          onClose={handleChatClose}
+                        />
+                      </div>
                     ) : (
-                      // Fallback content in case neither WhatsApp nor Telegram is active
+                      // Fallback content in case no platform is active
                       <div className="flex items-center justify-center h-full p-4 text-center">
                         <div>
                           <p className="text-muted-foreground mb-4">No active chat selected or invalid platform.</p>
@@ -1183,16 +1484,44 @@ export default function Page() {
                           </div>
                         )}
                         {activeContactList === 'whatsapp' && (
-                          <WhatsappContactList
-                            onContactSelect={handleContactSelect}
-                            selectedContactId={selectedContactId}
-                          />
+                          <div className="contact-list-container h-full">
+                            <WhatsappContactList
+                              onContactSelect={(contact) => {
+                                setSelectedContact(contact);
+                              }}
+                              selectedContactId={selectedContactId}
+                            />
+                          </div>
                         )}
                         {activeContactList === 'telegram' && (
-                          <TelegramContactList
-                            onContactSelect={handleContactSelect}
-                            selectedContactId={selectedContactId}
-                          />
+                          <div className="contact-list-container h-full">
+                            <TelegramContactList
+                              onContactSelect={(contact) => {
+                                setSelectedContact(contact);
+                              }}
+                              selectedContactId={selectedContactId}
+                            />
+                          </div>
+                        )}
+                        {activeContactList === 'instagram' && (
+                          <div className="contact-list-container h-full">
+                            <InstagramContactList
+                              onContactSelect={(contact) => {
+                                setSelectedContact(contact);
+                              }}
+                              selectedContactId={selectedContactId}
+                            />
+                          </div>
+                        )}
+                        {activeContactList === 'linkedin' && (
+                          <div className="contact-list-container h-full">
+                            <LinkedinContactList
+                              onContactSelect={(contact) => {
+                                setSelectedContact(contact);
+                              }}
+                              selectedContactId={selectedContactId}
+                            />
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1200,38 +1529,94 @@ export default function Page() {
                     {/* Chat view for desktop */}
                     {!isMobile && selectedContact && (
                       <div className="flex-1 h-full">
-                        {activeContactList === 'whatsapp' ? (
-                          <div className="flex-1 h-full rounded-lg whatsapp-glowing-border">
-                            <WhatsAppChatView
-                              selectedContact={selectedContact}
-                              onContactUpdate={(updatedContact) => {
-                                if (selectedContact) {
-                                  setSelectedContact({ ...selectedContact, ...updatedContact });
-                                }
-                              }}
-                              onClose={handleChatClose}
-                            />
-                          </div>
-                        ) : activeContactList === 'telegram' ? (
-                          <div className="flex-1 h-full rounded-lg">
-                            <TelegramChatView
-                              selectedContact={selectedContact}
-                              onContactUpdate={(updatedContact) => {
-                                if (selectedContact) {
-                                  setSelectedContact({ ...selectedContact, ...updatedContact });
-                                }
-                              }}
-                              onClose={handleChatClose}
-                            />
-                          </div>
-                        ) : null}
-
+                        <div className="flex-1 h-full rounded-lg">
+                          {activeContactList === 'whatsapp' && selectedContact && (
+                            <div className="flex-1 h-full rounded-lg">
+                              <WhatsAppChatView
+                                selectedContact={selectedContact}
+                                onContactUpdate={(updatedContact) => {
+                                  if (selectedContact) {
+                                    setSelectedContact({ ...selectedContact, ...updatedContact });
+                                  }
+                                }}
+                                onClose={handleChatClose}
+                              />
+                            </div>
+                          )}
+                          {activeContactList === 'telegram' && selectedContact && (
+                            <div className="flex-1 h-full rounded-lg">
+                              <TelegramChatView
+                                selectedContact={selectedContact}
+                                onContactUpdate={(updatedContact) => {
+                                  if (selectedContact) {
+                                    setSelectedContact({ ...selectedContact, ...updatedContact });
+                                  }
+                                }}
+                                onClose={handleChatClose}
+                              />
+                            </div>
+                          )}
+                          {activeContactList === 'instagram' && selectedContact && (
+                            <div className="flex-1 h-full rounded-lg">
+                              <InstagramChatView
+                                contact={selectedContact}
+                                onContactUpdate={(updatedContact) => {
+                                  if (selectedContact) {
+                                    setSelectedContact({ ...selectedContact, ...updatedContact });
+                                  }
+                                }}
+                                onClose={handleChatClose}
+                              />
+                            </div>
+                          )}
+                          {activeContactList === 'linkedin' && selectedContact && (
+                            <div className="flex-1 h-full rounded-lg">
+                              <LinkedinChatView
+                                selectedContact={selectedContact}
+                                onContactUpdate={(updatedContact) => {
+                                  if (selectedContact) {
+                                    setSelectedContact({ ...selectedContact, ...updatedContact });
+                                  }
+                                }}
+                                onClose={handleChatClose}
+                              />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </>
                 )}
               </>
             )}
+          </div>
+          
+          {/* Test Notification Button - Temporary for debugging */}
+          <div className="fixed bottom-4 right-4 z-50">
+            <button 
+              onClick={async () => {
+                console.log('[DEBUG] Test button clicked');
+                
+                // Get debug info
+                const debugInfo = notificationManager.getDebugInfo();
+                console.log('[DEBUG] Notification manager debug info:', debugInfo);
+                
+                // Test WhatsApp notification
+                console.log('[DEBUG] Testing WhatsApp notification...');
+                const whatsappResult = await notificationManager.testNotification('whatsapp');
+                console.log('[DEBUG] WhatsApp test result:', whatsappResult);
+                
+                // Test Telegram notification after a short delay
+                setTimeout(async () => {
+                  console.log('[DEBUG] Testing Telegram notification...');
+                  const telegramResult = await notificationManager.testNotification('telegram');
+                  console.log('[DEBUG] Telegram test result:', telegramResult);
+                }, 2000);
+              }}
+              className="bg-green-500 text-white px-4 py-2 rounded shadow-lg hover:bg-green-600"
+            >
+              Test Notifications
+            </button>
           </div>
           
           {/* Test Notification Button - Only in development */}

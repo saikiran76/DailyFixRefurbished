@@ -15,7 +15,7 @@ import {
   SidebarGroup,
   SidebarHeader,
 } from "@/components/ui/sidebar"
-import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage';
+import { isWhatsAppConnected, isTelegramConnected, isInstagramConnected, isLinkedInConnected } from '@/utils/connectionStorage';
 import {
   Popover,
   PopoverContent,
@@ -51,6 +51,8 @@ interface PlatformItem {
 interface AppSidebarProps {
   onWhatsAppSelected?: () => void;
   onTelegramSelected?: () => void;
+  onInstagramSelected?: () => void;
+  onLinkedInSelected?: () => void;
   onSettingsSelected?: () => void;
   onPlatformConnect?: (platformId: string) => void;
   onPlatformSelect?: (platformId: string) => void;
@@ -59,6 +61,8 @@ interface AppSidebarProps {
 export function AppSidebar({
   onWhatsAppSelected,
   onTelegramSelected,
+  onInstagramSelected,
+  onLinkedInSelected,
   onSettingsSelected,
   onPlatformConnect,
   onPlatformSelect,
@@ -100,6 +104,16 @@ export function AppSidebar({
     [userId, connectionStatusChangeCounter]
   );
 
+  const instagramConnected = React.useMemo(
+    () => userId ? isInstagramConnected(userId) : false,
+    [userId, connectionStatusChangeCounter]
+  );
+
+  const linkedInConnected = React.useMemo(
+    () => userId ? isLinkedInConnected(userId) : false,
+    [userId, connectionStatusChangeCounter]
+  );
+
   const platformItems: PlatformItem[] = React.useMemo(() => [
     {
       id: "whatsapp",
@@ -118,11 +132,41 @@ export function AppSidebar({
       isActive: telegramConnected,
       isConnected: telegramConnected,
       color: "text-blue-500"
+    },
+    {
+      id: "instagram",
+      title: "Instagram",
+      icon: ({ className }: { className?: string }) => (
+        <span className={`text-pink-500 font-bold ${className}`}>I</span>
+      ),
+      onClick: () => {
+        if (onPlatformSelect) {
+          onPlatformSelect('instagram');
+        }
+      },
+      isActive: instagramConnected,
+      isConnected: instagramConnected,
+      color: "text-pink-500"
+    },
+    {
+      id: "linkedin",
+      title: "LinkedIn",
+      icon: ({ className }: { className?: string }) => (
+        <span className={`text-blue-500 font-bold ${className}`}>L</span>
+      ),
+      onClick: () => {
+        if (onPlatformSelect) {
+          onPlatformSelect('linkedin');
+        }
+      },
+      isActive: linkedInConnected,
+      isConnected: linkedInConnected,
+      color: "text-blue-500"
     }
-  ], [onWhatsAppSelected, onTelegramSelected, whatsAppConnected, telegramConnected]);
+  ], [onWhatsAppSelected, onTelegramSelected, onPlatformSelect, whatsAppConnected, telegramConnected, instagramConnected, linkedInConnected]);
 
   const [activePlatform, setActivePlatform] = React.useState<string | null>(
-    whatsAppConnected ? "whatsapp" : (telegramConnected ? "telegram" : null)
+    whatsAppConnected ? "whatsapp" : (telegramConnected ? "telegram" : (instagramConnected ? "instagram" : (linkedInConnected ? "linkedin" : null)))
   );
 
   React.useEffect(() => {
@@ -140,6 +184,8 @@ export function AppSidebar({
       onWhatsAppSelected();
     } else if (platformId === 'telegram' && onTelegramSelected) {
       onTelegramSelected();
+    } else if (platformId === 'instagram' && onInstagramSelected) {
+      onInstagramSelected();
     }
     if (onPlatformSelect) {
       onPlatformSelect(platformId);

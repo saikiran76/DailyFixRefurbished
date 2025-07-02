@@ -14,8 +14,6 @@ import { initializeSocket } from '@/utils/socket';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
 import MessageItem from '@/components/platforms/whatsapp/MessageItem';
 import { messageService } from '@/services/messageService';
-import { priorityService, type Priority } from '@/services/priorityService';
-import PriorityBadge from '@/components/ui/PriorityBadge';
 import {
   fetchMessages,
   sendMessage,
@@ -126,13 +124,101 @@ const spinVariants = {
   }
 };
 
+// Priority Badge component
+const PriorityBadge = ({ priority, onClick }) => {
+  if (!priority) return null;
+  
+  const getVariantAndClass = () => {
+    switch (priority) {
+      case 'high':
+        return { variant: 'destructive', className: 'bg-red-500 text-white rounded' };
+      case 'medium':
+        return { variant: 'default', className: 'bg-yellow-500 bg-opacity-70 text-black rounded' };
+      case 'low':
+        return { variant: 'default', className: 'bg-green-600 text-white/80 rounded-lg' };
+      default:
+        return { variant: 'outline', className: 'bg-gray-400 bg-opacity-70 text-white rounded' };
+    }
+  };
+  
+  const { variant, className } = getVariantAndClass();
+  const label = priority.charAt(0).toUpperCase() + priority.slice(1);
+  
+  return (
+    <Badge 
+      variant={variant}
+      className={`text-xs font-medium py-0.5 px-2 rounded cursor-pointer ${className} hover:opacity-80`}
+      onClick={onClick}
+    >
+      {label} Priority
+    </Badge>
+  );
+};
+
+const SyncProgressIndicator = ({ syncState, loadingState }) => {
+  const getStatusColor = () => {
+    if (syncState.state === SYNC_STATES.REJECTED) {
+        return 'bg-red-500';
+    } else if (syncState.state === SYNC_STATES.APPROVED) {
+      return 'bg-green-500';
+    } else {
+        return 'bg-yellow-500';
+    }
+  };
+
+  // Hide the indicator if loading is complete or sync is complete
+  if (loadingState === LOADING_STATES.COMPLETE ||
+      (syncState.state === SYNC_STATES.APPROVED && syncState.progress === 100)) {
+    return null;
+  }
+
+  // Show appropriate loading message based on state
+  const getMessage = () => {
+    switch (loadingState) {
+      case LOADING_STATES.CONNECTING:
+        return 'Connecting to chat room...';
+      case LOADING_STATES.FETCHING:
+        return 'Getting your messages...';
+      default:
+        return syncState.details;
+    }
+  };
+
+  // Using Shadcn UI components now
+  return (
+    <div className="absolute top-0 left-0 right-0 z-10">
+      <Card className="m-4 bg-[#24283b] border-none shadow-lg">
+        <CardContent className="p-4 space-y-2">
+          <div className="flex justify-between text-sm text-gray-400">
+            <span>{getMessage()}</span>
+            {syncState.state === SYNC_STATES.APPROVED && (
+              <span>{syncState.processedMessages} / {syncState.totalMessages} messages</span>
+            )}
+          </div>
+          <div className="w-full bg-gray-700 rounded-full overflow-hidden">
+            <Progress 
+              value={syncState.progress} 
+              className="h-2"
+            />
+          </div>
+          {syncState.state === SYNC_STATES.REJECTED && syncState.errors?.length > 0 && (
+            <div className="text-xs text-red-400 mt-1">
+              {syncState.errors[syncState.errors.length - 1].message}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const handleSyncError = (error, contactId) => {
   const errorMessage = error?.response?.data?.message || error?.message || 'An unknown error occurred';
 
   setSyncState(prev => ({
     ...prev,
     state: SYNC_STATES.REJECTED,
-    errors: [...(prev.errors || []), {
+    errors: [...prev.errors, {
       message: errorMessage,
       timestamp: Date.now()
     }]
@@ -272,63 +358,6 @@ const LoadingChatView = ({ details }) => {
   );
 };
 
-const SyncProgressIndicator = ({ syncState, loadingState }) => {
-  const getStatusColor = () => {
-    if (syncState.state === SYNC_STATES.REJECTED) {
-        return 'bg-red-500';
-    } else if (syncState.state === SYNC_STATES.APPROVED) {
-      return 'bg-green-500';
-    } else {
-        return 'bg-yellow-500';
-    }
-  };
-
-  // Hide the indicator if loading is complete or sync is complete
-  if (loadingState === LOADING_STATES.COMPLETE ||
-      (syncState.state === SYNC_STATES.APPROVED && syncState.progress === 100)) {
-    return null;
-  }
-
-  // Show appropriate loading message based on state
-  const getMessage = () => {
-    switch (loadingState) {
-      case LOADING_STATES.CONNECTING:
-        return 'Connecting to chat room...';
-      case LOADING_STATES.FETCHING:
-        return 'Getting your messages...';
-      default:
-        return syncState.details;
-    }
-  };
-
-  // Using Shadcn UI components now
-  return (
-    <div className="absolute top-0 left-0 right-0 z-10">
-      <Card className="m-4 bg-[#24283b] border-none shadow-lg">
-        <CardContent className="p-4 space-y-2">
-          <div className="flex justify-between text-sm text-gray-400">
-            <span>{getMessage()}</span>
-            {syncState.state === SYNC_STATES.APPROVED && (
-              <span>{syncState.processedMessages} / {syncState.totalMessages} messages</span>
-            )}
-          </div>
-          <div className="w-full bg-gray-700 rounded-full overflow-hidden">
-            <Progress 
-              value={syncState.progress} 
-              className="h-2"
-            />
-          </div>
-          {syncState.state === SYNC_STATES.REJECTED && syncState.errors?.length > 0 && (
-            <div className="text-xs text-red-400 mt-1">
-              {syncState.errors[syncState.errors.length - 1].message}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
 const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -359,7 +388,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   });
   const [socketInitError, setSocketInitError] = useState(false);
   const [previewMedia, setPreviewMedia] = useState(null);
-  const [priority, setPriority] = useState<Priority>('medium');
+  const [priority, setPriority] = useState(null);
   const [showSummary, setShowSummary] = useState(false);
   const [summary, setSummary] = useState(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -377,7 +406,6 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     details: '',
     processedMessages: 0,
     totalMessages: 0,
-    errors: [],
   });
   const [showChatbot, setShowChatbot] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
@@ -438,7 +466,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       }
 
       try {
-        await dispatch(sendMessage({ contactId: selectedContact.id, message })).unwrap();
+        await dispatch(sendMessage({ contactId: selectedContact.id, message, platform: 'whatsapp' })).unwrap();
         scrollToBottom();
       } catch (error) {
         logger.error('[ChatView] Error sending message:', error);
@@ -452,7 +480,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const handleMarkAsRead = useCallback(
     debounce((messageIds) => {
       if (!selectedContact?.id || messageIds.length === 0 || !isMounted.current) return;
-      dispatch(markMessagesAsRead({ contactId: selectedContact.id, messageIds }));
+      dispatch(markMessagesAsRead({ contactId: selectedContact.id, messageIds, platform: 'whatsapp' }));
     }, 1000),
     [dispatch, selectedContact?.id]
   );
@@ -518,6 +546,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         fetchNewMessages({
           contactId: selectedContact.id,
           lastEventId: validLastEventId,
+          platform: 'whatsapp'
         })
       ).unwrap();
 
@@ -542,7 +571,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     if (!selectedContact?.id || isRefreshing) return;
 
     try {
-      await dispatch(refreshMessages({ contactId: selectedContact.id })).unwrap();
+      await dispatch(refreshMessages({ contactId: selectedContact.id, platform: 'whatsapp' })).unwrap();
       toast.success('Messages refreshed successfully');
     } catch (error) {
       toast.error('Unable to refresh messages');
@@ -607,6 +636,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               contactId: selectedContact.id,
               page: 0,
               limit: PAGE_SIZE,
+              platform: 'whatsapp'
             })
           )
             .unwrap()
@@ -626,49 +656,6 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 contactId: selectedContact.id,
                 error: error.message,
               });
-              
-              // Handle contact removal due to room not found
-              if (error.code === 'CONTACT_REMOVED') {
-                logger.info('[ChatView] Contact was auto-deleted, navigating back to dashboard');
-                setLoadingState(LOADING_STATES.ERROR);
-                setSyncState((prev) => ({
-                  ...prev,
-                  state: SYNC_STATES.REJECTED,
-                  progress: 0,
-                  details: 'Contact no longer accessible',
-                  errors: [
-                    ...(prev.errors || []),
-                    {
-                      message: 'Contact has been removed as it is no longer accessible',
-                      timestamp: Date.now(),
-                    },
-                  ],
-                }));
-                
-                // Show a more user-friendly message
-                toast.error('This contact is no longer accessible and has been removed', {
-                  duration: 5000,
-                  style: {
-                    background: '#EF4444',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)',
-                  },
-                });
-                
-                // Navigate back to dashboard after a short delay
-                setTimeout(() => {
-                  if (typeof onClose === 'function') {
-                    onClose();
-                  } else {
-                    navigate('/dashboard');
-                  }
-                }, 2000);
-                
-                return;
-              }
-              
               setLoadingState(LOADING_STATES.ERROR);
               setSyncState((prev) => ({
                 ...prev,
@@ -676,7 +663,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 progress: 0,
                 details: 'Failed to load messages',
                 errors: [
-                  ...(prev.errors || []),
+                  ...prev.errors,
                   {
                     message: error.message,
                     timestamp: Date.now(),
@@ -1010,7 +997,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         state: SYNC_STATES.REJECTED,
         details: error || 'Failed to load messages',
         errors: [
-          ...(prev.errors || []),
+          ...prev.errors,
           { message: error || 'Failed to load messages', timestamp: Date.now() },
         ],
       }));
@@ -1023,36 +1010,26 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     }
   }, [selectedContact]);
 
-  const handlePriorityChange = (newPriority: Priority) => {
-    if (!selectedContact?.id) return;
+  const handlePriorityChange = (priority) => {
+    if (!selectedContact) return;
 
-    setPriority(newPriority);
-    
-    // Save to priorityService (which handles localStorage)
-    priorityService.setPriority(selectedContact.id, newPriority);
+    setPriority(priority);
 
-    // Update Redux state
     dispatch(updateContactPriority({
       contactId: selectedContact.id,
-      priority: newPriority,
+      priority,
     }));
 
-    // Update parent component
     if (typeof onContactUpdate === 'function') {
       const updatedContact = {
         ...selectedContact,
         metadata: {
           ...selectedContact.metadata,
-          priority: newPriority,
+          priority,
         },
       };
       onContactUpdate(updatedContact);
     }
-
-    logger.info('[WhatsApp ChatView] Priority changed:', {
-      contactId: selectedContact.id,
-      priority: newPriority
-    });
   };
 
   const renderConnectionStatus = useCallback(() => {
@@ -1185,15 +1162,16 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
             <h2 className="font-medium">{selectedContact?.display_name || 'Unknown'}</h2>
             <div className="flex items-center space-x-2 text-xs text-muted-foreground">
               {renderConnectionStatus()}
-              {/* Enhanced Priority Badge with proper colors */}
-              <PriorityBadge
-                priority={priority}
+              {/* Priority Badge replacing dropdown */}
+              <Badge 
+                priority={priority || selectedContact.metadata?.priority || 'medium'} 
                 onClick={() => {
-                  const nextPriority = priorityService.getNextPriority(priority);
+                  // Cycle through priorities: low -> medium -> high -> low
+                  const currentPriority = priority || selectedContact.metadata?.priority || 'medium';
+                  const nextPriority = currentPriority === 'low' ? 'medium' : 
+                                      currentPriority === 'medium' ? 'high' : 'low';
                   handlePriorityChange(nextPriority);
                 }}
-                size="sm"
-                className="ml-2"
               />
             </div>
           </div>
@@ -1242,7 +1220,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               </TooltipContent>
             </Tooltip>
             
-            {/* FIXED: Single AI Chatbot Button - removed duplicate */}
+            {/* AI Chatbot Button */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1255,11 +1233,11 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
-                <p>Toggle AI Chatbot</p>
+                <p>Summarize chat</p>
               </TooltipContent>
             </Tooltip>
             
-            {/* Summary Button - FIXED: Different icon and tooltip */}
+            {/* Summary Button */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -1270,14 +1248,14 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   className="text-header-foreground hover:bg-accent rounded-full"
                 >
                   {isSummarizing ? (
-                    <RiAiGenerate className="h-4 w-4 animate-pulse" />
+                    <BotMessageSquare className="h-4 w-4 animate-pulse" />
                   ) : (
-                    <RiAiGenerate className="h-4 w-4" />
+                    <BotMessageSquare className="h-4 w-4" />
                   )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
-                <p>Generate chat summary</p>
+                <p>Summarize chat</p>
               </TooltipContent>
             </Tooltip>
             
@@ -1353,6 +1331,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                     contactId: selectedContact.id,
                     page: nextPage,
                     limit: PAGE_SIZE,
+                    platform: 'whatsapp'
                   })
                 );
               }

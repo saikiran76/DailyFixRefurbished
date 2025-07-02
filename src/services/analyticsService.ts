@@ -34,7 +34,7 @@ class AnalyticsService {
       logger.info(`[AnalyticsService] Fetching analytics stats for user: ${userId}`);
       
       const response = await api.get(`/api/v1/analytics/stats/${userId}`, {
-        timeout: 10000 // 10 second timeout
+        timeout: 15000 // 10 second timeout
       });
 
       if (response.data) {

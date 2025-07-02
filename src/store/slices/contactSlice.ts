@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import contactService from '@/services/contactService';
 import logger from '@/utils/logger';
-import { isWhatsAppConnected, isTelegramConnected } from '@/utils/connectionStorage';
+import { isWhatsAppConnected, isTelegramConnected, isLinkedInConnected } from '@/utils/connectionStorage';
 import type { RootState } from '../store';
 
 // Add priority constants
@@ -32,6 +32,8 @@ export const fetchContacts = createAsyncThunk(
         isPlatformConnected = isWhatsAppConnected(userId);
       } else if (platform === 'telegram') {
         isPlatformConnected = isTelegramConnected(userId);
+      } else if (platform === 'linkedin') {
+        isPlatformConnected = isLinkedInConnected(userId);
       }
 
       if (!isPlatformConnected) {
@@ -69,6 +71,8 @@ export const freshSyncContacts = createAsyncThunk(
         isPlatformConnected = isWhatsAppConnected(userId);
       } else if (platform === 'telegram') {
         isPlatformConnected = isTelegramConnected(userId);
+      } else if (platform === 'linkedin') {
+        isPlatformConnected = isLinkedInConnected(userId);
       }
 
       if (!isPlatformConnected) {
@@ -406,5 +410,32 @@ export const selectContactsError = (state) => state.contacts.error;
 export const selectLastSyncTime = (state) => state.contacts.syncStatus.lastSyncTime;
 export const selectIsSyncing = (state) => state.contacts.syncStatus.inProgress;
 export const selectInitialLoadComplete = (state) => state.contacts.initialLoadComplete;
-export const selectContactPriority = (state, contactId) =>
-  state.contacts.priorityMap[contactId]?.priority || PRIORITY_LEVELS.LOW;
+export const selectContactPriority = (state, contactId) => {
+  // CRITICAL FIX: Add safety checks for state structure and contactId
+  if (!state || !state.contacts) {
+    console.warn('[selectContactPriority] Invalid state structure:', state);
+    return PRIORITY_LEVELS.LOW;
+  }
+  
+  if (!contactId) {
+    console.warn('[selectContactPriority] No contactId provided');
+    return PRIORITY_LEVELS.LOW;
+  }
+  
+  if (!state.contacts.priorityMap) {
+    console.warn('[selectContactPriority] No priorityMap in state');
+    return PRIORITY_LEVELS.LOW;
+  }
+  
+  try {
+    const priority = state.contacts.priorityMap[contactId]?.priority;
+    return priority || PRIORITY_LEVELS.LOW;
+  } catch (error) {
+    console.error('[selectContactPriority] Error accessing priorityMap:', {
+      contactId,
+      error,
+      priorityMapKeys: Object.keys(state.contacts.priorityMap || {})
+    });
+    return PRIORITY_LEVELS.LOW;
+  }
+};

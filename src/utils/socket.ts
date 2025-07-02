@@ -382,7 +382,7 @@ export const initializeSocket = async (options: {
         const connectionTimeout = setTimeout(() => {
           logger.error(`[Socket] Connection timeout for ${platform}`);
           reject(new Error('Socket connection timeout'));
-        }, 10000);
+        }, 20000);
 
         // Set up connection handlers
         socketInstance.on('connect', () => {

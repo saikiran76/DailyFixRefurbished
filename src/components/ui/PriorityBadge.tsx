@@ -1,67 +1,87 @@
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
-import { priorityService, type Priority } from '@/services/priorityService';
 import { cn } from '@/lib/utils';
+
+export type Priority = 'low' | 'medium' | 'high';
 
 interface PriorityBadgeProps {
   priority: Priority;
-  onClick?: () => void;
-  className?: string;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
+  onClick?: () => void;
+  className?: string;
 }
 
-const PriorityBadge: React.FC<PriorityBadgeProps> = ({ 
-  priority, 
-  onClick, 
+const priorityConfig = {
+  high: {
+    color: 'bg-red-500',
+    textColor: 'text-white',
+    hoverColor: 'hover:bg-red-600',
+    label: 'High',
+  },
+  medium: {
+    color: 'bg-orange-500',
+    textColor: 'text-white',
+    hoverColor: 'hover:bg-orange-600',
+    label: 'Medium',
+  },
+  low: {
+    color: 'bg-green-500',
+    textColor: 'text-white',
+    hoverColor: 'hover:bg-green-600',
+    label: 'Low',
+  },
+};
+
+const sizeConfig = {
+  sm: 'h-2 w-2 text-xs',
+  md: 'h-3 w-3 text-sm',
+  lg: 'h-4 w-4 text-base',
+};
+
+const PriorityBadge: React.FC<PriorityBadgeProps> = ({
+  priority,
+  size = 'md',
+  showLabel = false,
+  onClick,
   className,
-  size = 'sm',
-  showLabel = true
 }) => {
-  const getBadgeClasses = () => {
-    const baseClasses = "font-medium transition-all duration-200 border-0";
-    
-    const sizeClasses = {
-      sm: "text-xs px-2 py-0.5 rounded-full",
-      md: "text-sm px-3 py-1 rounded-lg", 
-      lg: "text-base px-4 py-1.5 rounded-lg"
-    };
+  const config = priorityConfig[priority];
+  const sizeClass = sizeConfig[size];
 
-    const colorClasses = {
-      high: "bg-red-500 hover:bg-red-600 text-white shadow-red-200 dark:shadow-red-900",
-      medium: "bg-orange-500 hover:bg-orange-600 text-white shadow-orange-200 dark:shadow-orange-900", 
-      low: "bg-green-500 hover:bg-green-600 text-white shadow-green-200 dark:shadow-green-900"
-    };
-
-    const shadowClass = onClick ? "shadow-lg hover:shadow-xl cursor-pointer" : "shadow-sm";
-    
-    return cn(
-      baseClasses,
-      sizeClasses[size],
-      colorClasses[priority],
-      shadowClass,
-      onClick && "hover:scale-105 active:scale-95",
-      className
+  if (showLabel) {
+    return (
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium',
+          config.color,
+          config.textColor,
+          onClick && 'cursor-pointer',
+          onClick && config.hoverColor,
+          'transition-colors duration-200',
+          className
+        )}
+        onClick={onClick}
+      >
+        <div className={cn('rounded-full', sizeClass)} />
+        {config.label}
+      </span>
     );
-  };
-
-  const label = showLabel ? priorityService.getPriorityLabel(priority) : '';
-  const displayText = showLabel ? `${label} Priority` : '';
+  }
 
   return (
-    <Badge
-      variant="secondary"
-      className={getBadgeClasses()}
-      onClick={onClick}
-      style={{
-        backgroundColor: priorityService.getPriorityColor(priority),
-        color: 'white'
-      }}
-    >
-      {displayText || (
-        <div className={cn("w-2 h-2 rounded-full", priorityService.getPriorityBgColor(priority))} />
+    <div
+      className={cn(
+        'rounded-full',
+        config.color,
+        sizeClass,
+        onClick && 'cursor-pointer',
+        onClick && config.hoverColor,
+        'transition-colors duration-200',
+        className
       )}
-    </Badge>
+      onClick={onClick}
+      title={`Priority: ${config.label}`}
+    />
   );
 };
 

@@ -6,6 +6,7 @@ import logger from '@/utils/logger';
 interface PlatformConnectionStatus {
   whatsappConnected: boolean;
   telegramConnected: boolean;
+  instagramConnected: boolean;
   connectedPlatforms: string[];
   totalConnected: number;
   isLoading: boolean;
@@ -21,6 +22,7 @@ export const usePlatformConnection = (): PlatformConnectionStatus => {
   const [connectionStatus, setConnectionStatus] = useState<PlatformConnectionStatus>({
     whatsappConnected: false,
     telegramConnected: false,
+    instagramConnected: false,
     connectedPlatforms: [],
     totalConnected: 0,
     isLoading: true,
@@ -39,6 +41,7 @@ export const usePlatformConnection = (): PlatformConnectionStatus => {
         setConnectionStatus({
           whatsappConnected: false,
           telegramConnected: false,
+          instagramConnected: false,
           connectedPlatforms: [],
           totalConnected: 0,
           isLoading: false,
@@ -56,10 +59,12 @@ export const usePlatformConnection = (): PlatformConnectionStatus => {
       // Check individual platforms
       const whatsappConnected = activePlatforms.includes('whatsapp');
       const telegramConnected = activePlatforms.includes('telegram');
+      const instagramConnected = activePlatforms.includes('instagram');
       
       const newStatus = {
         whatsappConnected,
         telegramConnected,
+        instagramConnected,
         connectedPlatforms: activePlatforms,
         totalConnected: activePlatforms.length,
         isLoading: false,
@@ -96,6 +101,7 @@ export const usePlatformConnection = (): PlatformConnectionStatus => {
         setConnectionStatus({
           whatsappConnected: false,
           telegramConnected: false,
+          instagramConnected: false,
           connectedPlatforms: [],
           totalConnected: 0,
           isLoading: false,
@@ -110,10 +116,12 @@ export const usePlatformConnection = (): PlatformConnectionStatus => {
       // Check individual platforms
       const whatsappConnected = activePlatforms.includes('whatsapp');
       const telegramConnected = activePlatforms.includes('telegram');
+      const instagramConnected = activePlatforms.includes('instagram');
       
       const newStatus = {
         whatsappConnected,
         telegramConnected,
+        instagramConnected,
         connectedPlatforms: activePlatforms,
         totalConnected: activePlatforms.length,
         isLoading: false,

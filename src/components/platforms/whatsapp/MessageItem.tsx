@@ -21,7 +21,19 @@ interface MessageItemProps {
 
 const MessageItem: React.FC<MessageItemProps> = ({ message, currentUser, className = '' }) => {
   const isOutgoing = message.sender_id === currentUser?.id || message.is_outgoing;
-  const formattedTime = message.timestamp ? format(new Date(message.timestamp), 'HH:mm') : '';
+  
+  // CRITICAL FIX: Safely format the timestamp with validation
+  const formattedTime = (() => {
+    try {
+      if (!message.timestamp) return '';
+      const date = new Date(message.timestamp);
+      if (isNaN(date.getTime())) return '';
+      return format(date, 'HH:mm');
+    } catch (error) {
+      console.warn('[MessageItem] Invalid timestamp format:', message.timestamp, error);
+      return '';
+    }
+  })();
   
   // Generate message status icon based on status
   const getStatusIcon = () => {

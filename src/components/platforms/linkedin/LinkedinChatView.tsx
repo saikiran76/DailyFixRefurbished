@@ -12,7 +12,7 @@ import { debounce } from 'lodash';
 import { ErrorBoundary } from 'react-error-boundary';
 import { initializeSocket } from '@/utils/socket';
 import LavaLamp from '@/components/ui/Loader/LavaLamp';
-import MessageItem from '@/components/platforms/telegram/MessageItem';
+import MessageItem from '@/components/platforms/linkedin/MessageItem';
 import { messageService } from '@/services/messageService';
 import { priorityService, type Priority } from '@/services/priorityService';
 import PriorityBadge from '@/components/ui/PriorityBadge';
@@ -42,6 +42,7 @@ import { WiCloudRefresh } from "react-icons/wi";
 import { RiAiGenerate } from "react-icons/ri";
 import { IoArrowBack } from "react-icons/io5";
 import { BotMessageSquare } from "lucide-react";
+import LinkedInChatbot from '@/components/AI/linkedinChatbot';
 import { motion } from 'framer-motion';
 import ContactAvatar from './ContactAvatar';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
@@ -53,13 +54,12 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ErrorMessage from '@/components/ui/ErrorMessage';
-import { Image } from "lucide-react";
+import { Images } from "lucide-react";
 import ChatBackgroundSettings, { getChatBackground } from '@/components/ui/ChatBackgroundSettings';
 import { Badge } from "@/components/ui/badge";
 // import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 // import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-// import TelegramInfoPanel from './TelegramInfoPanel';
-
+// import linkedinInfoPanel from './linkedinInfoPanel';
 // Import environment variables
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -97,7 +97,7 @@ const INITIAL_SYNC_STATE = {
 
 // Array of fun facts for the loading state
 const SOCIAL_MEDIA_FUN_FACTS = [
-  "telegram processes over 65 billion messages daily.",
+  "linkedin processes over 65 billion messages daily.",
   "The average person spends over 2 hours on social media every day.",
   "Facebook was originally called 'TheFacebook' when it launched in 2004.",
   "Instagram was purchased by Facebook for $1 billion in 2012.",
@@ -105,7 +105,7 @@ const SOCIAL_MEDIA_FUN_FACTS = [
   "The first YouTube video was uploaded on April 23, 2005, titled 'Me at the zoo'.",
   "LinkedIn was founded in 2002, making it one of the oldest social networks.",
   "Over 500 hours of video are uploaded to YouTube every minute.",
-  "telegram was acquired by Facebook for $19 billion in 2014.",
+  "linkedin was acquired by Facebook for $19 billion in 2014.",
   "TikTok reached 1 billion users faster than any other platform.",
   "The average time spent reading a tweet is just 1.5 seconds.",
   "Instagram's most-liked photo was of an egg, with over 55 million likes.",
@@ -126,26 +126,26 @@ const spinVariants = {
   }
 };
 
-const handleSyncError = (error, contactId) => {
-  const errorMessage = error?.response?.data?.message || error?.message || 'An unknown error occurred';
+// const handleSyncError = (error, contactId) => {
+//   const errorMessage = error?.response?.data?.message || error?.message || 'An unknown error occurred';
 
-  setSyncState(prev => ({
-    ...prev,
-    state: SYNC_STATES.REJECTED,
-    errors: [...prev.errors, {
-      message: errorMessage,
-      timestamp: Date.now()
-    }]
-  }));
+//   setSyncState(prev => ({
+//     ...prev,
+//     state: SYNC_STATES.REJECTED,
+//     errors: [...(prev.errors || []), {
+//       message: errorMessage,
+//       timestamp: Date.now()
+//     }]
+//   }));
 
-  setError(`Message sync failed: ${errorMessage}`);
+//   setError(`Message sync failed: ${errorMessage}`);
 
-  console.error('[ChatView] Sync error:', {
-    contactId,
-    error: errorMessage,
-    timestamp: new Date().toISOString()
-  });
-};
+//   console.error('[ChatView] Sync error:', {
+//     contactId,
+//     error: errorMessage,
+//     timestamp: new Date().toISOString()
+//   });
+// };
 
 // Socket error specific fallback
 const SocketErrorFallback = ({ onRetry }) => {
@@ -161,9 +161,9 @@ const SocketErrorFallback = ({ onRetry }) => {
             Unable to connect to the chat server
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {/* <ErrorMessage message="Check your internet connection and try again." /> */}
-        </CardContent>
+        {/* <CardContent>
+          <ErrorMessage message="Socket connection error. This could be due to network issues or server maintenance. Check your internet connection and try again." />
+        </CardContent> */}
         <CardFooter className="flex flex-col space-y-2">
           <Button 
             onClick={onRetry} 
@@ -216,7 +216,8 @@ const ErrorFallback = ({ error }) => {
 const CONNECTION_STATUS = {
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
-  CONNECTING: 'connecting'
+  CONNECTING: 'connecting',
+  ERROR: 'error'
 };
 
 // Add new loading state constant
@@ -332,21 +333,21 @@ const SyncProgressIndicator = ({ syncState, loadingState }) => {
 const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const currentUser = useSelector((state) => state.auth.session?.user);
-  const { socket, isConnected } = useSocketConnection('telegram');
+  const currentUser = useSelector((state: any) => state.auth.session?.user);
+  const { socket, isConnected } = useSocketConnection('linkedin');
   const isRefreshing = useSelector(selectRefreshing);
 
   // Redux message selectors
-  const messagesState = useSelector((state) => state.messages);
-  const messages = useSelector((state) => selectMessages(state, selectedContact?.id) || []);
-  const loading = useSelector((state) => selectMessageLoading(state) || false);
-  const error = useSelector((state) => selectMessageError(state) || null);
-  const hasMoreMessages = useSelector((state) => selectHasMoreMessages(state) || false);
-  const currentPage = useSelector((state) => selectCurrentPage(state) || 0);
-  const messageQueue = useSelector((state) => selectMessageQueue(state) || []);
-  const unreadMessageIds = useSelector((state) => selectUnreadMessageIds(state) || []);
+  const messagesState = useSelector((state: any) => state.messages);
+  const messages = useSelector((state: any) => selectMessages(state, selectedContact?.id) || []);
+  const loading = useSelector((state: any) => selectMessageLoading(state) || false);
+  const error = useSelector((state: any) => selectMessageError(state) || null);
+  const hasMoreMessages = useSelector((state: any) => selectHasMoreMessages(state) || false);
+  const currentPage = useSelector((state: any) => selectCurrentPage(state) || 0);
+  const messageQueue = useSelector((state: any) => selectMessageQueue(state) || []);
+  const unreadMessageIds = useSelector((state: any) => selectUnreadMessageIds(state) || []);
   const isNewMessagesFetching = useSelector(selectNewMessagesFetching);
-  const lastKnownMessageId = useSelector((state) => selectLastKnownMessageId(state, selectedContact?.id));
+  const lastKnownMessageId = useSelector((state: any) => selectLastKnownMessageId(state, selectedContact?.id));
   const newMessagesError = useSelector(selectNewMessagesError);
 
   // Local state
@@ -379,6 +380,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     totalMessages: 0,
     errors: [],
   });
+  const [showChatbot, setShowChatbot] = useState(false);
   const [showBackgroundSettings, setShowBackgroundSettings] = useState(false);
   const [chatBackground, setChatBackground] = useState<string>("");
 
@@ -424,28 +426,24 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     return true;
   }, [socket]);
 
-  const handleMessageSend = useCallback(
+  const handleSendMessage = useCallback(
     async (content) => {
       if (!selectedContact?.id) return;
 
       const message = { content };
 
       if (!checkSocketAvailability() || !socketReady) {
-        dispatch(addToMessageQueue(message));
+        dispatch(addToMessageQueue(message) as any);
         toast.success('Message queued for delivery');
         return;
       }
 
       try {
-        await dispatch(sendMessage({ 
-          contactId: selectedContact.id, 
-          message, 
-          platform: 'telegram' 
-        })).unwrap();
+        await dispatch(sendMessage({ contactId: selectedContact.id, message, platform: 'linkedin' }) as any).unwrap();
         scrollToBottom();
       } catch (error) {
         logger.error('[ChatView] Error sending message:', error);
-        dispatch(addToMessageQueue(message));
+        dispatch(addToMessageQueue(message) as any);
         toast.error('Failed to send message, queued for retry');
       }
     },
@@ -455,11 +453,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   const handleMarkAsRead = useCallback(
     debounce((messageIds) => {
       if (!selectedContact?.id || messageIds.length === 0 || !isMounted.current) return;
-      dispatch(markMessagesAsRead({ 
-        contactId: selectedContact.id, 
-        messageIds,
-        platform: 'telegram'
-      }));
+      dispatch(markMessagesAsRead({ contactId: selectedContact.id, messageIds, platform: 'linkedin' }) as any);
     }, 1000),
     [dispatch, selectedContact?.id]
   );
@@ -525,8 +519,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         fetchNewMessages({
           contactId: selectedContact.id,
           lastEventId: validLastEventId,
-          platform: 'telegram'
-        })
+          platform: 'linkedin'
+        }) as any
       ).unwrap();
 
       if (result?.warning) {
@@ -550,10 +544,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     if (!selectedContact?.id || isRefreshing) return;
 
     try {
-      await dispatch(refreshMessages({ 
-        contactId: selectedContact.id,
-        platform: 'telegram'
-      })).unwrap();
+      await dispatch(refreshMessages({ contactId: selectedContact.id, platform: 'linkedin' }) as any).unwrap();
       toast.success('Messages refreshed successfully');
     } catch (error) {
       toast.error('Unable to refresh messages');
@@ -586,7 +577,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         membership: selectedContact.membership,
       });
 
-      api.post(`/api/v1/telegram/contacts/${selectedContact.id}/listen`)
+      api.post(`/api/v1/linkedin/contacts/${selectedContact.id}/listen`)
         .then((response) => {
           logger.info('[ChatView] Room listener setup successful:', {
             contactId: selectedContact.id,
@@ -601,8 +592,6 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
           toast.warn('Real-time updates may be delayed but you can use the "new messages" button for new updates');
         })
         .finally(() => {
-          // Always proceed to fetch messages regardless of listener setup result
-          logger.info('[ChatView] Transitioning to FETCHING state to load messages');
           setLoadingState(LOADING_STATES.FETCHING);
           setSyncState((prev) => ({
             ...prev,
@@ -620,15 +609,11 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               contactId: selectedContact.id,
               page: 0,
               limit: PAGE_SIZE,
-              platform: 'telegram'
-            })
+              platform: 'linkedin'
+            }) as any
           )
             .unwrap()
             .then((result) => {
-              logger.info('[ChatView] Messages fetched successfully:', {
-                count: result.messages?.length,
-                hasMore: result.hasMore
-              });
               setLoadingState(LOADING_STATES.COMPLETE);
               setSyncState((prev) => ({
                 ...prev,
@@ -704,22 +689,6 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               toast.error('Failed to load messages');
             });
         });
-    } else if (selectedContact?.membership !== 'join') {
-      // If the membership isn't 'join', show an appropriate message
-      logger.info('[ChatView] Contact does not have join membership:', {
-        contactId: selectedContact.id,
-        membership: selectedContact.membership
-      });
-      
-      setLoadingState(LOADING_STATES.ERROR);
-      setSyncState((prev) => ({
-        ...prev,
-        state: SYNC_STATES.REJECTED,
-        progress: 0,
-        details: `Cannot load messages: ${selectedContact.membership} status`,
-      }));
-      
-      toast.error(`Cannot load messages for ${selectedContact.membership} status`);
     }
   }, [dispatch, selectedContact?.id, selectedContact?.membership]);
 
@@ -763,12 +732,12 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       }
     };
 
-    socket.on('telegram:contact:update', handleContactUpdate);
-    socket.on('telegram:membership:update', handleMembershipUpdate);
+    socket.on('linkedin:contact:update', handleContactUpdate);
+    socket.on('linkedin:membership:update', handleMembershipUpdate);
 
     return () => {
-      socket.off('telegram:contact:update', handleContactUpdate);
-      socket.off('telegram:membership:update', handleMembershipUpdate);
+      socket.off('linkedin:contact:update', handleContactUpdate);
+      socket.off('linkedin:membership:update', handleMembershipUpdate);
     };
   }, [socket, selectedContact?.id, onContactUpdate]);
 
@@ -868,17 +837,17 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     const userRoom = `user:${currentUser.id}`;
     socket.emit('join:room', userRoom);
 
-    socket.off('telegram:message');
-    socket.off('telegram:message:update');
+    socket.off('linkedin:message');
+    socket.off('linkedin:message:update');
     socket.off('room:joined');
     socket.off('room:error');
 
-    socket.on('telegram:message', handleNewMessage);
-    socket.on('telegram:message:update', handleMessageUpdate);
+    socket.on('linkedin:message', handleNewMessage);
+    socket.on('linkedin:message:update', handleMessageUpdate);
 
     return () => {
-      socket.off('telegram:message', handleNewMessage);
-      socket.off('telegram:message:update', handleMessageUpdate);
+      socket.off('linkedin:message:new', handleNewMessage);
+      socket.off('linkedin:message:update', handleMessageUpdate);
     };
   }, [socket, selectedContact?.id, dispatch, currentPage, scrollToBottom]);
 
@@ -896,7 +865,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
           logger.info('[ChatView] Attempting to initialize socket');
           // Pass the correct platform and options to initializeSocket
           const newSocket = await initializeSocket({
-            platform: 'telegram',
+            platform: 'linkedin',
             onConnect: () => {
               logger.info('[ChatView] Socket connected via manual initialization');
               setConnectionStatus(CONNECTION_STATUS.CONNECTED);
@@ -1044,35 +1013,18 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
         state: SYNC_STATES.REJECTED,
         details: error || 'Failed to load messages',
         errors: [
-          ...prev.errors,
+          ...(prev.errors || []),
           { message: error || 'Failed to load messages', timestamp: Date.now() },
         ],
       }));
     }
   }, [loadingState, messages.length, error]);
 
-  // Load priority from priorityService when contact changes
   useEffect(() => {
-    if (selectedContact?.id) {
-      const contactPriority = priorityService.getPriority(selectedContact.id);
-      setPriority(contactPriority);
+    if (selectedContact) {
+      setPriority(selectedContact.metadata?.priority || 'medium');
     }
-  }, [selectedContact?.id]);
-
-  // Listen for priority changes from other components
-  useEffect(() => {
-    const handlePriorityChange = (event: CustomEvent) => {
-      const { contactId, priority: newPriority } = event.detail;
-      if (contactId === String(selectedContact?.id)) {
-        setPriority(newPriority);
-      }
-    };
-
-    window.addEventListener('priority-changed', handlePriorityChange as EventListener);
-    return () => {
-      window.removeEventListener('priority-changed', handlePriorityChange as EventListener);
-    };
-  }, [selectedContact?.id]);
+  }, [selectedContact]);
 
   const handlePriorityChange = (newPriority: Priority) => {
     if (!selectedContact?.id) return;
@@ -1086,7 +1038,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     dispatch(updateContactPriority({
       contactId: selectedContact.id,
       priority: newPriority,
-    }));
+    }) as any);
 
     // Update parent component
     if (typeof onContactUpdate === 'function') {
@@ -1100,7 +1052,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       onContactUpdate(updatedContact);
     }
 
-    logger.info('[Telegram ChatView] Priority changed:', {
+    logger.info('[linkedin ChatView] Priority changed:', {
       contactId: selectedContact.id,
       priority: newPriority
     });
@@ -1144,7 +1096,6 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
       return (
         <div className="flex flex-col items-center justify-center h-full">
           {/* <ErrorMessage message={error || 'Failed to load messages'} /> */}
-          <Alert>{error || 'Failed to load Messages'}</Alert>
         </div>
       );
     }
@@ -1179,7 +1130,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
     setSocketInitError(false);
     // Attempt to initialize a new socket connection
     initializeSocket({
-      platform: 'telegram',
+      platform: 'linkedin',
       onConnect: () => {
         logger.info('[ChatView] Socket connected via retry');
         setConnectionStatus(CONNECTION_STATUS.CONNECTED);
@@ -1206,7 +1157,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
 
   // Load the saved background when component mounts
   useEffect(() => {
-    const savedBackground = getChatBackground('telegram');
+    const savedBackground = getChatBackground('linkedin' as any);
     if (savedBackground) {
       setChatBackground(savedBackground);
     }
@@ -1215,7 +1166,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   // Listen for background changes from other components
   useEffect(() => {
     const handleBackgroundChange = (event: CustomEvent) => {
-      if (event.detail?.platform === 'telegram') {
+      if (event.detail?.platform === 'linkedin') {
         setChatBackground(event.detail.backgroundUrl);
       }
     };
@@ -1286,13 +1237,30 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                   onClick={() => setShowBackgroundSettings(true)}
                   className="text-header-foreground hover:bg-accent rounded-full"
                 >
-                  <Image className="h-4 w-4" />
+                  <Images className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
                 <p>Change chat background</p>
               </TooltipContent>
             </Tooltip>
+            
+            {/* FIXED: Single AI Chatbot Button - removed duplicate */}
+            {/* <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowChatbot(!showChatbot)}
+                  className="text-header-foreground hover:bg-accent rounded-full"
+                >
+                  <BotMessageSquare className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="bg-popover text-popover-foreground" side="bottom">
+                <p>Toggle AI Chatbot</p>
+              </TooltipContent>
+            </Tooltip> */}
             
             {/* Summary Button - FIXED: Different icon and tooltip */}
             {/* <Tooltip>
@@ -1353,7 +1321,7 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
   }
 
   return (
-    <div className="chat-view-container telegram-chat-view flex flex-col h-full bg-chat relative overflow-x-hidden rounded-lg w-full">
+    <div className="chat-view-container linkedin-chat-view flex flex-col h-full bg-chat relative overflow-x-hidden rounded-lg w-full">
       {!selectedContact?.id ? (
         <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-chat">
           <p>Select a contact to view the chat</p>
@@ -1379,8 +1347,9 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
               overflowWrap: "break-word",
               maxWidth: "100%"
             }}
-            onScroll={async (e) => {
-              const { scrollTop, scrollHeight, clientHeight } = e.target;
+            onScroll={async (e: React.UIEvent<HTMLDivElement>) => {
+              const target = e.target as HTMLDivElement;
+              const { scrollTop, scrollHeight, clientHeight } = target;
               if (scrollTop === 0 && hasMoreMessages && !loading) {
                 const nextPage = currentPage + 1;
                 await dispatch(
@@ -1388,8 +1357,8 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
                     contactId: selectedContact.id,
                     page: nextPage,
                     limit: PAGE_SIZE,
-                    platform: 'telegram'
-                  })
+                    platform: 'linkedin'
+                  }) as any
                 );
               }
             }}
@@ -1454,10 +1423,20 @@ const ChatView = ({ selectedContact, onContactUpdate, onClose }) => {
           <ChatBackgroundSettings 
             isOpen={showBackgroundSettings}
             onClose={() => setShowBackgroundSettings(false)}
-            platform="telegram"
+            platform="linkedin" as any
           />
+
+          {/* Add LinkedinChatbot component when showChatbot is true */}
+          {showChatbot && selectedContact?.id && (
+            <div className="border-t border-border">
+              <LinkedInChatbot contactId={selectedContact.id} />
+            </div>
+          )}
         </div>
       )}
+
+      {/* Add Chatbot component when a contact is selected */}
+      {/* {selectedContact?.id && <Chatbot contactId={selectedContact.id} />} */}
     </div>
   );
 };

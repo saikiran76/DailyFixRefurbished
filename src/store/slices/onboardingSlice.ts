@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk, createAction } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import api from '@/utils/api';
 import logger from '@/utils/logger';
-import { saveWhatsAppStatus, saveTelegramStatus } from '@/utils/connectionStorage';
+import { saveWhatsAppStatus, saveTelegramStatus, saveInstagramStatus, saveLinkedInStatus } from '@/utils/connectionStorage';
 import { setWhatsAppConnectedDB, setTelegramConnectedDB } from '@/utils/connectionStorageDB';
 
 // Define types for state interfaces
@@ -30,6 +30,26 @@ interface TelegramSetup {
   realTimeSetup: boolean;
 }
 
+interface InstagramSetup {
+  loading: boolean;
+  error: any | null;
+  setupState: string;
+  bridgeRoomId: string | null;
+  userName: string | null;
+  instagramUserId: string | null;
+  curlCommand: string | null;
+}
+
+interface LinkedInSetup {
+  loading: boolean;
+  error: any | null;
+  setupState: string;
+  bridgeRoomId: string | null;
+  userName: string | null;
+  linkedinUserId: string | null;
+  curlCommand: string | null;
+}
+
 interface PlatformAccount {
   platform: string;
   status: string;
@@ -42,11 +62,15 @@ interface OnboardingState {
   matrixConnected: boolean;
   whatsappConnected: boolean;
   telegramConnected: boolean;
+  instagramConnected: boolean;
+  linkedinConnected: boolean;
   isComplete: boolean;
   connectedPlatforms: string[];
   accounts: PlatformAccount[];
   whatsappSetup: WhatsAppSetup;
   telegramSetup: TelegramSetup;
+  instagramSetup: InstagramSetup;
+  linkedinSetup: LinkedInSetup;
   isReloginFlow: boolean;
   onboardingComplete: boolean;
   tooltipStep: number;
@@ -92,6 +116,16 @@ export const PLATFORMS = {
     id: 'telegram',
     protocol: PROTOCOLS.MATRIX,
     required: false
+  },
+  INSTAGRAM: {
+    id: 'instagram',
+    protocol: PROTOCOLS.MATRIX,
+    required: false
+  },
+  LINKEDIN: {
+    id: 'linkedin',
+    protocol: PROTOCOLS.MATRIX,
+    required: false
   }
   // DISCORD: {
   //   id: 'discord',
@@ -107,6 +141,8 @@ const initialState: OnboardingState = {
   matrixConnected: false,
   whatsappConnected: false,
   telegramConnected: false,
+  instagramConnected: false,
+  linkedinConnected: false,
   isComplete: false,
   connectedPlatforms: [],
   accounts: [],
@@ -131,6 +167,24 @@ const initialState: OnboardingState = {
     bridgeRoomId: null,
     phoneNumber: null,
     realTimeSetup: false
+  },
+  instagramSetup: {
+    loading: false,
+    error: null,
+    setupState: 'preparing',
+    bridgeRoomId: null,
+    userName: null,
+    instagramUserId: null,
+    curlCommand: null
+  },
+  linkedinSetup: {
+    loading: false,
+    error: null,
+    setupState: 'preparing',
+    bridgeRoomId: null,
+    userName: null,
+    linkedinUserId: null,
+    curlCommand: null
   },
   isReloginFlow: false,
   onboardingComplete: false,
@@ -172,6 +226,12 @@ export const updateOnboardingStep = createAsyncThunk(
 
 export const setWhatsappPhoneNumber = createAction<string>('onboarding/setWhatsappPhoneNumber');
 export const setTelegramPhoneNumber = createAction<string>('onboarding/setTelegramPhoneNumber');
+export const setInstagramUserName = createAction<string>('onboarding/setInstagramUserName');
+export const setInstagramUserId = createAction<string>('onboarding/setInstagramUserId');
+export const setInstagramCurlCommand = createAction<string>('onboarding/setInstagramCurlCommand');
+export const setLinkedInUserName = createAction<string>('onboarding/setLinkedInUserName');
+export const setLinkedInUserId = createAction<string>('onboarding/setLinkedInUserId');
+export const setLinkedInCurlCommand = createAction<string>('onboarding/setLinkedInCurlCommand');
 
 // CRITICAL UPDATE: Modified to work with new simplified flow
 export const initiateWhatsAppRelogin = createAsyncThunk(
@@ -196,6 +256,34 @@ export const initiateTelegramRelogin = createAsyncThunk(
     try {
       dispatch(setReloginFlow(true));
       dispatch(setTelegramConnected(false));
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+);
+
+// Add a similar function for Instagram relogin
+export const initiateInstagramRelogin = createAsyncThunk(
+  'onboarding/initiateInstagramRelogin',
+  async (_, { dispatch }) => {
+    try {
+      dispatch(setReloginFlow(true));
+      dispatch(setInstagramConnected(false));
+      return true;
+    } catch (error) {
+      throw error;
+    }
+  }
+);
+
+// Add a similar function for LinkedIn relogin
+export const initiateLinkedInRelogin = createAsyncThunk(
+  'onboarding/initiateLinkedInRelogin',
+  async (_, { dispatch }) => {
+    try {
+      dispatch(setReloginFlow(true));
+      dispatch(setLinkedInConnected(false));
       return true;
     } catch (error) {
       throw error;
@@ -404,6 +492,202 @@ const onboardingSlice = createSlice({
         logger.error('[onboardingSlice] Error setting Telegram connection status:', error);
       }
     },
+    setInstagramConnected: (state, action: PayloadAction<boolean>) => {
+      try {
+        state.instagramConnected = action.payload;
+
+        // Save to localStorage
+        try {
+          // Update localStorage as a fallback
+          saveInstagramStatus(action.payload);
+
+          logger.info('[onboardingSlice] Instagram connection status updated:', action.payload);
+        } catch (storageError) {
+          logger.error('[onboardingSlice] Error saving Instagram connection status:', storageError);
+        }
+        
+        if (action.payload === true) {
+          // Add Instagram to connectedPlatforms if not already present
+          if (!state.connectedPlatforms.includes('instagram')) {
+            state.connectedPlatforms.push('instagram');
+          }
+
+          // Add Instagram to accounts array if not already present
+          const instagramAccountExists = state.accounts.some(account => account.platform === 'instagram');
+          if (!instagramAccountExists) {
+            state.accounts.push({
+              platform: 'instagram',
+              status: 'active'
+            });
+          } else {
+            // Update existing Instagram account status to active
+            const instagramAccount = state.accounts.find(account => account.platform === 'instagram');
+            if (instagramAccount) {
+              instagramAccount.status = 'active';
+            }
+          }
+
+          // Also save to localStorage for persistence
+          try {
+            // Save in connection storage
+            const userDataStr = localStorage.getItem('dailyfix_auth');
+            const userId = userDataStr ? JSON.parse(userDataStr)?.user?.id : undefined;
+            
+            if (userId) {
+              // Get existing connection status
+              let connectionStatus: Record<string, boolean> = {};
+              const storedDataStr = localStorage.getItem('dailyfix_connection_status');
+              if (storedDataStr) {
+                try {
+                  const storedData = JSON.parse(storedDataStr);
+                  connectionStatus = storedData.status || {};
+                } catch (e) {
+                  console.error('Error parsing connection status:', e);
+                }
+              }
+              
+              // Update with instagram status
+              connectionStatus.instagram = true;
+              
+              const storageData = {
+                userId,
+                timestamp: Date.now(),
+                status: connectionStatus
+              };
+              localStorage.setItem('dailyfix_connection_status', JSON.stringify(storageData));
+            }
+
+            // Also update auth data
+            try {
+              const authDataStr = localStorage.getItem('dailyfix_auth');
+              if (authDataStr) {
+                // Make sure we're working with an object, not a string
+                let authData;
+                try {
+                  authData = JSON.parse(authDataStr);
+                  // Check if authData is actually an object
+                  if (typeof authData !== 'object' || authData === null) {
+                    throw new Error('Auth data is not an object');
+                  }
+                } catch (parseError) {
+                  // If parsing fails or it's not an object, create a new object
+                  console.error('Error parsing auth data, creating new object:', parseError);
+                  authData = {};
+                }
+
+                // Now safely add the instagramConnected property
+                authData.instagramConnected = true;
+                localStorage.setItem('dailyfix_auth', JSON.stringify(authData));
+              }
+            } catch (authError) {
+              console.error('Error updating auth data with Instagram connection:', authError);
+            }
+          } catch (error) {
+            console.error('Error saving Instagram connection status to localStorage:', error);
+          }
+        }
+      } catch (error) {
+        logger.error('[onboardingSlice] Error setting Instagram connection status:', error);
+      }
+    },
+    setLinkedInConnected: (state, action: PayloadAction<boolean>) => {
+      try {
+        state.linkedinConnected = action.payload;
+
+        // Save to localStorage
+        try {
+          // Update localStorage as a fallback
+          saveLinkedInStatus(action.payload);
+
+          logger.info('[onboardingSlice] LinkedIn connection status updated:', action.payload);
+        } catch (storageError) {
+          logger.error('[onboardingSlice] Error saving LinkedIn connection status:', storageError);
+        }
+        
+        if (action.payload === true) {
+          // Add LinkedIn to connectedPlatforms if not already present
+          if (!state.connectedPlatforms.includes('linkedin')) {
+            state.connectedPlatforms.push('linkedin');
+          }
+
+          // Add LinkedIn to accounts array if not already present
+          const linkedinAccountExists = state.accounts.some(account => account.platform === 'linkedin');
+          if (!linkedinAccountExists) {
+            state.accounts.push({
+              platform: 'linkedin',
+              status: 'active'
+            });
+          } else {
+            // Update existing LinkedIn account status to active
+            const linkedinAccount = state.accounts.find(account => account.platform === 'linkedin');
+            if (linkedinAccount) {
+              linkedinAccount.status = 'active';
+            }
+          }
+
+          // Also save to localStorage for persistence
+          try {
+            // Save in connection storage
+            const userDataStr = localStorage.getItem('dailyfix_auth');
+            const userId = userDataStr ? JSON.parse(userDataStr)?.user?.id : undefined;
+            
+            if (userId) {
+              // Get existing connection status
+              let connectionStatus: Record<string, boolean> = {};
+              const storedDataStr = localStorage.getItem('dailyfix_connection_status');
+              if (storedDataStr) {
+                try {
+                  const storedData = JSON.parse(storedDataStr);
+                  connectionStatus = storedData.status || {};
+                } catch (e) {
+                  console.error('Error parsing connection status:', e);
+                }
+              }
+              
+              // Update with linkedin status
+              connectionStatus.linkedin = true;
+              
+              const storageData = {
+                userId,
+                timestamp: Date.now(),
+                status: connectionStatus
+              };
+              localStorage.setItem('dailyfix_connection_status', JSON.stringify(storageData));
+            }
+
+            // Also update auth data
+            try {
+              const authDataStr = localStorage.getItem('dailyfix_auth');
+              if (authDataStr) {
+                // Make sure we're working with an object, not a string
+                let authData;
+                try {
+                  authData = JSON.parse(authDataStr);
+                  // Check if authData is actually an object
+                  if (typeof authData !== 'object' || authData === null) {
+                    throw new Error('Auth data is not an object');
+                  }
+                } catch (parseError) {
+                  // If parsing fails or it's not an object, create a new object
+                  console.error('Error parsing auth data, creating new object:', parseError);
+                  authData = {};
+                }
+
+                // Now safely add the linkedinConnected property
+                authData.linkedinConnected = true;
+                localStorage.setItem('dailyfix_auth', JSON.stringify(authData));
+              }
+            } catch (authError) {
+              console.error('Error updating auth data with LinkedIn connection:', authError);
+            }
+          } catch (error) {
+            console.error('Error saving LinkedIn connection status to localStorage:', error);
+          }
+        }
+      } catch (error) {
+        logger.error('[onboardingSlice] Error setting LinkedIn connection status:', error);
+      }
+    },
     setWhatsappQRCode: (state, action: PayloadAction<string | null>) => {
       state.whatsappSetup.qrCode = action.payload;
       state.whatsappSetup.timeLeft = 60;
@@ -495,6 +779,68 @@ const onboardingSlice = createSlice({
         state.telegramSetup.realTimeSetup = true;
       }
     },
+    setInstagramSetupState: (state, action: PayloadAction<string>) => {
+      state.instagramSetup.setupState = action.payload;
+      // Update loading state based on setupState
+      state.instagramSetup.loading = ['preparing', 'waiting_for_curl'].includes(action.payload);
+      // Clear error when changing state (except for error state)
+      if (action.payload !== 'error') {
+        state.instagramSetup.error = null;
+      }
+      // Update main instagramConnected flag when setup is complete
+      if (action.payload === 'connected') {
+        state.instagramConnected = true;
+        if (!state.connectedPlatforms.includes('instagram')) {
+          state.connectedPlatforms.push('instagram');
+        }
+
+        // Add Instagram to accounts array if not already present
+        const instagramAccountExists = state.accounts.some(account => account.platform === 'instagram');
+        if (!instagramAccountExists) {
+          state.accounts.push({
+            platform: 'instagram',
+            status: 'active'
+          });
+        } else {
+          // Update existing Instagram account status to active
+          const instagramAccount = state.accounts.find(account => account.platform === 'instagram');
+          if (instagramAccount) {
+            instagramAccount.status = 'active';
+          }
+        }
+      }
+    },
+    setLinkedInSetupState: (state, action: PayloadAction<string>) => {
+      state.linkedinSetup.setupState = action.payload;
+      // Update loading state based on setupState
+      state.linkedinSetup.loading = ['preparing', 'waiting_for_curl'].includes(action.payload);
+      // Clear error when changing state (except for error state)
+      if (action.payload !== 'error') {
+        state.linkedinSetup.error = null;
+      }
+      // Update main linkedinConnected flag when setup is complete
+      if (action.payload === 'connected') {
+        state.linkedinConnected = true;
+        if (!state.connectedPlatforms.includes('linkedin')) {
+          state.connectedPlatforms.push('linkedin');
+        }
+
+        // Add LinkedIn to accounts array if not already present
+        const linkedinAccountExists = state.accounts.some(account => account.platform === 'linkedin');
+        if (!linkedinAccountExists) {
+          state.accounts.push({
+            platform: 'linkedin',
+            status: 'active'
+          });
+        } else {
+          // Update existing LinkedIn account status to active
+          const linkedinAccount = state.accounts.find(account => account.platform === 'linkedin');
+          if (linkedinAccount) {
+            linkedinAccount.status = 'active';
+          }
+        }
+      }
+    },
     setWhatsappTimeLeft: (state, action: PayloadAction<number>) => {
       state.whatsappSetup.timeLeft = action.payload;
       if (action.payload <= 0) {
@@ -519,11 +865,25 @@ const onboardingSlice = createSlice({
       state.telegramSetup.error = action.payload;
       state.telegramSetup.setupState = 'error';
     },
+    setInstagramError: (state, action: PayloadAction<any>) => {
+      state.instagramSetup.error = action.payload;
+      state.instagramSetup.setupState = 'error';
+    },
+    setLinkedInError: (state, action: PayloadAction<any>) => {
+      state.linkedinSetup.error = action.payload;
+      state.linkedinSetup.setupState = 'error';
+    },
     setBridgeRoomId: (state, action: PayloadAction<string | null>) => {
       state.whatsappSetup.bridgeRoomId = action.payload;
     },
     setTelegramBridgeRoomId: (state, action: PayloadAction<string | null>) => {
       state.telegramSetup.bridgeRoomId = action.payload;
+    },
+    setInstagramBridgeRoomId: (state, action: PayloadAction<string | null>) => {
+      state.instagramSetup.bridgeRoomId = action.payload;
+    },
+    setLinkedInBridgeRoomId: (state, action: PayloadAction<string | null>) => {
+      state.linkedinSetup.bridgeRoomId = action.payload;
     },
     resetWhatsappSetup: (state) => {
       state.whatsappSetup = {
@@ -534,6 +894,18 @@ const onboardingSlice = createSlice({
     resetTelegramSetup: (state) => {
       state.telegramSetup = {
         ...initialState.telegramSetup,
+        setupState: 'initial'
+      };
+    },
+    resetInstagramSetup: (state) => {
+      state.instagramSetup = {
+        ...initialState.instagramSetup,
+        setupState: 'initial'
+      };
+    },
+    resetLinkedInSetup: (state) => {
+      state.linkedinSetup = {
+        ...initialState.linkedinSetup,
         setupState: 'initial'
       };
     },
@@ -567,6 +939,8 @@ const onboardingSlice = createSlice({
         state.matrixConnected = responseData.matrix_connected || responseData.matrixConnected;
         state.whatsappConnected = responseData.whatsapp_connected || responseData.whatsappConnected;
         state.telegramConnected = responseData.telegram_connected || responseData.telegramConnected;
+        state.instagramConnected = responseData.instagram_connected || responseData.instagramConnected;
+        state.linkedinConnected = responseData.linkedin_connected || responseData.linkedinConnected;
         state.isComplete = responseData.is_complete || responseData.isComplete;
         state.connectedPlatforms = responseData.connected_platforms || responseData.connectedPlatforms || [];
         state.accounts = responseData.accounts || [];
@@ -577,6 +951,8 @@ const onboardingSlice = createSlice({
           isComplete: state.isComplete,
           whatsappConnected: state.whatsappConnected,
           telegramConnected: state.telegramConnected,
+          instagramConnected: state.instagramConnected,
+          linkedinConnected: state.linkedinConnected,
           accounts: state.accounts,
           connectedPlatforms: state.connectedPlatforms
         });
@@ -610,6 +986,36 @@ const onboardingSlice = createSlice({
             });
           }
         }
+
+        // Do the same for Instagram
+        if (state.isComplete === true && state.instagramConnected === true) {
+          const hasInstagramAccount = state.accounts.some(account =>
+            account.platform === 'instagram' && (account.status === 'active' || account.status === 'pending')
+          );
+
+          if (!hasInstagramAccount) {
+            logger.info('[onboardingSlice] Adding missing Instagram account');
+            state.accounts.push({
+              platform: 'instagram',
+              status: 'active'
+            });
+          }
+        }
+
+        // Do the same for LinkedIn
+        if (state.isComplete === true && state.linkedinConnected === true) {
+          const hasLinkedInAccount = state.accounts.some(account =>
+            account.platform === 'linkedin' && (account.status === 'active' || account.status === 'pending')
+          );
+
+          if (!hasLinkedInAccount) {
+            logger.info('[onboardingSlice] Adding missing LinkedIn account');
+            state.accounts.push({
+              platform: 'linkedin',
+              status: 'active'
+            });
+          }
+        }
       })
       .addCase(fetchOnboardingStatus.rejected, (state, action) => {
         state.loading = false;
@@ -635,6 +1041,12 @@ const onboardingSlice = createSlice({
           if (data.telegramConnected !== undefined) {
             state.telegramConnected = data.telegramConnected;
           }
+          if (data.instagramConnected !== undefined) {
+            state.instagramConnected = data.instagramConnected;
+          }
+          if (data.linkedinConnected !== undefined) {
+            state.linkedinConnected = data.linkedinConnected;
+          }
           if (data.isComplete !== undefined) {
             state.isComplete = data.isComplete;
           }
@@ -653,6 +1065,24 @@ const onboardingSlice = createSlice({
       .addCase(setTelegramPhoneNumber, (state, action) => {
         state.telegramSetup.phoneNumber = action.payload;
       })
+      .addCase(setInstagramUserName, (state, action) => {
+        state.instagramSetup.userName = action.payload;
+      })
+      .addCase(setInstagramUserId, (state, action) => {
+        state.instagramSetup.instagramUserId = action.payload;
+      })
+      .addCase(setInstagramCurlCommand, (state, action) => {
+        state.instagramSetup.curlCommand = action.payload;
+      })
+      .addCase(setLinkedInUserName, (state, action) => {
+        state.linkedinSetup.userName = action.payload;
+      })
+      .addCase(setLinkedInUserId, (state, action) => {
+        state.linkedinSetup.linkedinUserId = action.payload;
+      })
+      .addCase(setLinkedInCurlCommand, (state, action) => {
+        state.linkedinSetup.curlCommand = action.payload;
+      })
       .addCase(setWhatsappConnected, (state, action) => {
         state.whatsappConnected = action.payload;
         if (action.payload === true && !state.connectedPlatforms.includes('whatsapp')) {
@@ -663,6 +1093,18 @@ const onboardingSlice = createSlice({
         state.telegramConnected = action.payload;
         if (action.payload === true && !state.connectedPlatforms.includes('telegram')) {
           state.connectedPlatforms.push('telegram');
+        }
+      })
+      .addCase(setInstagramConnected, (state, action) => {
+        state.instagramConnected = action.payload;
+        if (action.payload === true && !state.connectedPlatforms.includes('instagram')) {
+          state.connectedPlatforms.push('instagram');
+        }
+      })
+      .addCase(setLinkedInConnected, (state, action) => {
+        state.linkedinConnected = action.payload;
+        if (action.payload === true && !state.connectedPlatforms.includes('linkedin')) {
+          state.connectedPlatforms.push('linkedin');
         }
       });
   }
@@ -675,18 +1117,28 @@ export const {
   setIsComplete,
   setWhatsappConnected,
   setTelegramConnected,
+  setInstagramConnected,
+  setLinkedInConnected,
   setWhatsappQRCode,
   setTelegramQRCode,
   setWhatsappSetupState,
   setTelegramSetupState,
+  setInstagramSetupState,
+  setLinkedInSetupState,
   setWhatsappTimeLeft,
   setTelegramTimeLeft,
   setWhatsappError,
   setTelegramError,
+  setInstagramError,
+  setLinkedInError,
   setBridgeRoomId,
   setTelegramBridgeRoomId,
+  setInstagramBridgeRoomId,
+  setLinkedInBridgeRoomId,
   resetWhatsappSetup,
   resetTelegramSetup,
+  resetInstagramSetup,
+  resetLinkedInSetup,
   setReloginFlow,
   updateAccounts,
   setOnboardingComplete,
@@ -697,5 +1149,7 @@ export const {
 export const selectOnboardingState = (state: { onboarding: OnboardingState }) => state.onboarding;
 export const selectWhatsappSetup = (state: { onboarding: OnboardingState }) => state.onboarding.whatsappSetup;
 export const selectTelegramSetup = (state: { onboarding: OnboardingState }) => state.onboarding.telegramSetup;
+export const selectInstagramSetup = (state: { onboarding: OnboardingState }) => state.onboarding.instagramSetup;
+export const selectLinkedInSetup = (state: { onboarding: OnboardingState }) => state.onboarding.linkedinSetup;
 
 export default onboardingSlice.reducer;

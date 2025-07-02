@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import api from '@/utils/api';
 import { BiSolidHide } from "react-icons/bi";
 import { MdCloudSync } from "react-icons/md";
-import { FiEdit3, FiRefreshCw, FiSearch, FiX, FiMessageSquare } from "react-icons/fi";
+import { FiEdit3, FiRefreshCw, FiSearch, FiX, FiMessageSquare, FiFilter } from "react-icons/fi";
 import useAvatarCache from '@/hooks/useAvatarCache';
 import '@/components/styles/ShakeAnimation.css';
 import platformManager from '@/services/PlatformManager';
@@ -43,6 +43,14 @@ import {
   AlertDialogTitle, 
   AlertDialogTrigger 
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
 
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000;
@@ -319,14 +327,33 @@ const ContactItem = memo(({ contact, onClick, isSelected, notificationCount }: C
                   <div className="text-foreground font-medium truncate">{contact.display_name}</div>
                   {priority && <PriorityBadge priority={priority} />}
                 </div>
-                <div className="text-muted-foreground text-sm truncate">{contact.last_message}</div>
+                <div className="text-muted-foreground text-sm truncate">
+                  {contact.last_message ? (
+                    <span className="line-clamp-1">
+                      {contact.last_message.length > 50 
+                        ? `${contact.last_message.substring(0, 50)}...` 
+                        : contact.last_message}
+                    </span>
+                  ) : (
+                    <span className="italic opacity-70">No messages yet</span>
+                  )}
+                </div>
               </>
             )}
           </div>
           <div className="flex flex-col items-end space-y-1">
             {contact.last_message_at && (
               <div className="text-muted-foreground text-xs flex-shrink-0">
-                  {format(new Date(contact.last_message_at), 'HH:mm')}
+                  {(() => {
+                    try {
+                      const date = new Date(contact.last_message_at);
+                      if (isNaN(date.getTime())) return 'Unknown';
+                      return format(date, 'HH:mm');
+                    } catch (error) {
+                      console.warn('[WhatsAppContactList] Invalid date format:', contact.last_message_at, error);
+                      return 'Unknown';
+                    }
+                  })()}
               </div>
             )}
             {notificationCount && notificationCount > 0 ? (
@@ -448,6 +475,9 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
   const session = useSelector((state: RootState) => state.auth.session);
   const loading = useSelector((state: RootState) => state.contacts.loading);
   const error = useSelector((state: RootState) => state.contacts.error);
+  
+  // CRITICAL FIX: Get the actual priorityMap from Redux state
+  const priorityMap = useSelector((state: RootState) => state.contacts.priorityMap);
 
   // Get notifications from Liveblocks
   const { inboxNotifications } = useInboxNotifications();
@@ -469,6 +499,16 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
   // Platform verification state
   const [isVerifyingPlatform, setIsVerifyingPlatform] = React.useState(false);
   const [verificationMessage, setVerificationMessage] = React.useState('');
+
+  // Enhanced filtering and search state
+  const [priorityFilter, setPriorityFilter] = useState({
+    high: true,
+    medium: true,
+    low: true,
+    none: true, // Contacts without priority
+  });
+  const [showPriorityFilter, setShowPriorityFilter] = useState(false);
+  const [sortBy, setSortBy] = useState('activity'); // 'activity', 'priority', 'name'
 
   const unreadNotificationCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -1145,12 +1185,145 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
     });
   }, [contacts]);
 
-  const searchedContacts = useMemo(() => {
-    if (!searchQuery.trim()) return filteredContacts;
-    return filteredContacts.filter(contact =>
-      contact.display_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  // Enhanced filtering and sorting with notifications, priorities, and search
+  const processedContacts = useMemo(() => {
+    let filtered = filteredContacts;
+
+    // DEBUG: Log priority information
+    console.log('[DEBUG] Priority filtering - priorityMap:', priorityMap);
+    console.log('[DEBUG] Priority filtering - priorityFilter:', priorityFilter);
+    console.log('[DEBUG] Sample contacts with priorities:', 
+      filteredContacts.slice(0, 3).map(contact => ({
+        id: contact.id,
+        name: contact.display_name,
+        priority: selectContactPriority({ contacts: { items: contacts, priorityMap: priorityMap } }, contact.id)
+      }))
     );
-  }, [filteredContacts, searchQuery]);
+
+    // Apply priority filtering
+    if (!priorityFilter.high || !priorityFilter.medium || !priorityFilter.low || !priorityFilter.none) {
+      filtered = filtered.filter(contact => {
+        // CRITICAL FIX: Add safety check for contact existence
+        if (!contact || !contact.id) return false;
+        
+        try {
+          const priority = selectContactPriority({ contacts: { items: contacts, priorityMap: priorityMap } }, contact.id);
+          
+          console.log('[DEBUG] Contact priority check:', {
+            contactId: contact.id,
+            contactName: contact.display_name,
+            priority: priority,
+            priorityFilter: priorityFilter
+          });
+          
+          if (!priority && priorityFilter.none) return true;
+          if (priority === 'high' && priorityFilter.high) return true;
+          if (priority === 'medium' && priorityFilter.medium) return true;
+          if (priority === 'low' && priorityFilter.low) return true;
+          
+          return false;
+        } catch (error) {
+          logger.warn('[WhatsAppContactList] Error getting priority for contact:', { contactId: contact.id, error });
+          // If priority check fails, include in 'none' filter
+          return priorityFilter.none;
+        }
+      });
+    }
+
+    // Apply search filtering (search in display name and last message)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(contact => {
+        const nameMatch = contact.display_name?.toLowerCase().includes(query);
+        const messageMatch = contact.last_message?.toLowerCase().includes(query);
+        return nameMatch || messageMatch;
+      });
+    }
+
+    // Apply sorting
+    return filtered.sort((a, b) => {
+      // CRITICAL FIX: Add safety checks for contact existence
+      if (!a || !b || !a.id || !b.id) return 0;
+      
+      try {
+        // Get notification counts for both contacts
+        const aNotifications = unreadNotificationCounts[a.id] || 0;
+        const bNotifications = unreadNotificationCounts[b.id] || 0;
+        
+        // Get priorities for both contacts with safety checks
+        let aPriority, bPriority;
+        try {
+          aPriority = selectContactPriority({ contacts: { items: contacts, priorityMap: priorityMap } }, a.id);
+        } catch (error) {
+          logger.warn('[WhatsAppContactList] Error getting priority for contact A:', { contactId: a.id, error });
+          aPriority = 'low';
+        }
+        
+        try {
+          bPriority = selectContactPriority({ contacts: { items: contacts, priorityMap: priorityMap } }, b.id);
+        } catch (error) {
+          logger.warn('[WhatsAppContactList] Error getting priority for contact B:', { contactId: b.id, error });
+          bPriority = 'low';
+        }
+        
+        // Priority order mapping
+        const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+        const aPriorityScore = priorityOrder[aPriority] || 0;
+        const bPriorityScore = priorityOrder[bPriority] || 0;
+
+        switch (sortBy) {
+          case 'priority':
+            // Sort by priority first, then by notifications, then by activity
+            if (aPriorityScore !== bPriorityScore) {
+              return bPriorityScore - aPriorityScore; // Higher priority first
+            }
+            if (aNotifications !== bNotifications) {
+              return bNotifications - aNotifications; // More notifications first
+            }
+            // Fall through to activity sorting
+            break;
+            
+          case 'name':
+            // Sort alphabetically, but prioritize contacts with notifications
+            if (aNotifications !== bNotifications) {
+              return bNotifications - aNotifications; // Notifications first
+            }
+            return (a.display_name || '').localeCompare(b.display_name || '');
+            
+          case 'activity':
+          default:
+            // Sort by notifications first, then by last message time, then by priority
+            if (aNotifications !== bNotifications) {
+              return bNotifications - aNotifications; // More notifications first
+            }
+            
+            const aTime = new Date(a.last_message_at || 0).getTime();
+            const bTime = new Date(b.last_message_at || 0).getTime();
+            
+            if (aTime !== bTime) {
+              return bTime - aTime; // More recent activity first
+            }
+            
+            // If same activity time, sort by priority
+            return bPriorityScore - aPriorityScore;
+        }
+
+        // Default fallback to activity time
+        const aTime = new Date(a.last_message_at || 0).getTime();
+        const bTime = new Date(b.last_message_at || 0).getTime();
+        return bTime - aTime;
+      } catch (error) {
+        logger.error('[WhatsAppContactList] Error in contact sorting:', { 
+          contactA: a.id, 
+          contactB: b.id, 
+          error 
+        });
+        return 0; // Keep original order if sorting fails
+      }
+    });
+  }, [filteredContacts, searchQuery, priorityFilter, sortBy, unreadNotificationCounts, contacts, priorityMap]);
+
+  const searchedContacts = processedContacts; // For backward compatibility
 
   // Check if the current platform is active and refresh if needed
   useEffect(() => {
@@ -1347,14 +1520,15 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
         </div>
       </CardHeader>
 
-      {/* Search Input */}
-      <div className="sticky top-0 z-10 p-4 bg-background border-b border-border">
+      {/* Enhanced Search and Filter Section */}
+      <div className="sticky top-0 z-10 p-4 bg-background border-b border-border space-y-3">
+        {/* Search Input */}
         <div className="relative">
           <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search contacts..."
+            placeholder="Search contacts and messages..."
             className="w-full bg-card text-foreground px-10 py-2 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-primary placeholder-muted-foreground"
           />
           <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
@@ -1369,6 +1543,86 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
               <span className="sr-only">Clear search</span>
             </Button>
           )}
+        </div>
+
+        {/* Filter and Sort Controls */}
+        <div className="flex items-center justify-between gap-2">
+          {/* Sort Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="text-xs">
+                Sort: {sortBy === 'activity' ? 'Recent' : sortBy === 'priority' ? 'Priority' : 'Name'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onSelect={() => setSortBy('activity')}>
+                Recent Activity
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSortBy('priority')}>
+                Priority Level
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSortBy('name')}>
+                Alphabetical
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Priority Filter */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant={showPriorityFilter ? "default" : "outline"} 
+                size="sm" 
+                className="text-xs"
+              >
+                <FiFilter className="w-3 h-3 mr-1" />
+                Filter
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuCheckboxItem
+                checked={priorityFilter.high}
+                onCheckedChange={(checked) => 
+                  setPriorityFilter(prev => ({ ...prev, high: checked }))
+                }
+              >
+                <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20 mr-2">
+                  High Priority
+                </Badge>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={priorityFilter.medium}
+                onCheckedChange={(checked) => 
+                  setPriorityFilter(prev => ({ ...prev, medium: checked }))
+                }
+              >
+                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 mr-2">
+                  Medium Priority
+                </Badge>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={priorityFilter.low}
+                onCheckedChange={(checked) => 
+                  setPriorityFilter(prev => ({ ...prev, low: checked }))
+                }
+              >
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 mr-2">
+                  Low Priority
+                </Badge>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={priorityFilter.none}
+                onCheckedChange={(checked) => 
+                  setPriorityFilter(prev => ({ ...prev, none: checked }))
+                }
+              >
+                <Badge variant="outline" className="bg-muted text-muted-foreground border-border mr-2">
+                  No Priority
+                </Badge>
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1417,14 +1671,59 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
             data={searchedContacts}
             itemContent={(index, contact) => {
               const notificationCount = unreadNotificationCounts[contact.id] || 0;
+              
+              // MOBILE UX FIX: Proper touch handling for mobile scrolling
+              let touchStartY = 0;
+              let touchStartX = 0;
+              let touchStartTime = 0;
+              let isTouchMoved = false;
+              
+              const handleTouchStart = (e: React.TouchEvent) => {
+                const touch = e.touches[0];
+                touchStartY = touch.clientY;
+                touchStartX = touch.clientX;
+                touchStartTime = Date.now();
+                isTouchMoved = false;
+              };
+              
+              const handleTouchMove = (e: React.TouchEvent) => {
+                const touch = e.touches[0];
+                const deltaY = Math.abs(touch.clientY - touchStartY);
+                const deltaX = Math.abs(touch.clientX - touchStartX);
+                
+                // If user moved more than 10px in any direction, consider it a scroll/swipe
+                if (deltaY > 10 || deltaX > 10) {
+                  isTouchMoved = true;
+                }
+              };
+              
+              const handleTouchEnd = (e: React.TouchEvent) => {
+                const touchEndTime = Date.now();
+                const touchDuration = touchEndTime - touchStartTime;
+                
+                // Only trigger click if:
+                // 1. Touch didn't move significantly (not a scroll)
+                // 2. Touch duration was reasonable (not a long press)
+                // 3. Touch duration was not too short (not accidental)
+                if (!isTouchMoved && touchDuration > 100 && touchDuration < 500) {
+                  e.preventDefault();
+                  console.log('[DEBUG Mobile] Valid tap detected for:', contact.display_name);
+                  handleContactSelect(contact);
+                }
+              };
+              
               return (
                 <div
                   key={contact.id}
-                  className="cursor-pointer active:bg-accent hover:bg-accent transition-colors duration-200"
-                  onTouchStart={(e) => e.currentTarget.classList.add('bg-accent')}
-                  onTouchEnd={(e) => {
-                    e.currentTarget.classList.remove('bg-accent');
-                    e.preventDefault();
+                  className="cursor-pointer transition-colors duration-200"
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onClick={(e) => {
+                    // Only handle click on non-touch devices
+                    if (e.detail === 0) return; // Ignore programmatic clicks
+                    if ('ontouchstart' in window) return; // Ignore on touch devices
+                    console.log('[DEBUG Desktop] Mouse click detected for:', contact.display_name);
                     handleContactSelect(contact);
                   }}
                 >
@@ -1433,8 +1732,8 @@ const WhatsAppContactList = ({ onContactSelect, selectedContactId }: WhatsAppCon
                     isSelected={contact.id === selectedContactId}
                     notificationCount={notificationCount}
                     onClick={() => {
-                      console.log('[DEBUG Mobile] Contact clicked:', contact.display_name);
-                      handleContactSelect(contact);
+                      // This onClick is now handled by the parent div's events
+                      // Keep it here for compatibility but don't use it directly
                     }}
                   />
                 </div>

@@ -11,6 +11,9 @@ import logger from '@/utils/logger';
 import platformManager from '@/services/PlatformManager';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
+import PriorityBadge from '@/components/ui/PriorityBadge';
+import LinkedInTimer from '@/utils/linkedinTimer';
+import LinkedInReconnectionDialog from '@/components/platforms/linkedin/LinkedInReconnectionDialog';
 
 interface PlatformItem {
   id: string;
@@ -59,6 +62,8 @@ export const PlatformSwitcher = ({
     startTime: 0
   });
   const [showContactRefreshPrompt, setShowContactRefreshPrompt] = React.useState(false);
+  const [showLinkedInReconnectionDialog, setShowLinkedInReconnectionDialog] = React.useState(false);
+  const [pendingPlatformSwitch, setPendingPlatformSwitch] = React.useState<string | null>(null);
 
   // Reset switching state when modal closes
   React.useEffect(() => {
@@ -167,6 +172,142 @@ export const PlatformSwitcher = ({
     // Only perform platform switch actions if we're actually switching platforms (not clicking the same one)
     if (platformId !== activePlatform) {
       try {
+        // **LINKEDIN SPECIAL HANDLING - Time-based API checks**
+        if (platformId === 'linkedin') {
+          logger.info('[PlatformSwitcher] LinkedIn platform detected - using time-based connection handling');
+          
+          // Record that user is switching to LinkedIn
+          LinkedInTimer.recordLinkedInSwitch();
+          
+          // Check if we need to verify LinkedIn connection
+          const shouldCheckApi = LinkedInTimer.shouldCheckLinkedInStatus();
+          
+          if (!shouldCheckApi) {
+            // Use cached status - skip API call
+            const cachedStatus = LinkedInTimer.getCachedLinkedInStatus();
+            const timeUntilNext = LinkedInTimer.getFormattedTimeUntilNextCheck();
+            
+            logger.info(`[PlatformSwitcher] LinkedIn: Using cached status (${cachedStatus}), next check in ${timeUntilNext}`);
+            
+            if (cachedStatus !== false) {
+              // Cached status is connected or null (unknown) - proceed with switch
+              logger.info('[PlatformSwitcher] LinkedIn: Proceeding with cached connection status');
+              
+              // Perform immediate platform switch without API verification
+              localStorage.setItem('dailyfix_active_platform', platformId);
+              
+              // Dispatch platform change event
+              setTimeout(() => {
+                try {
+                  window.dispatchEvent(new CustomEvent('platform-connection-changed', {
+                    detail: {
+                      platform: platformId,
+                      isActive: true,
+                      timestamp: Date.now(),
+                      source: 'platform-switch-cached'
+                    }
+                  }));
+                  
+                  toast.success(`Switched to LinkedIn (cached status, next check in ${timeUntilNext})`);
+                  logger.info(`[PlatformSwitcher] LinkedIn switch completed using cached status`);
+                } catch (error) {
+                  logger.error('[PlatformSwitcher] Error during LinkedIn cached switch:', error);
+                }
+              }, 0);
+              
+              // Complete the switch immediately
+              onPlatformChange(platformId);
+              setIsOpen(false);
+              return;
+            } else {
+              // Cached status shows disconnected - force a check now
+              logger.info('[PlatformSwitcher] LinkedIn: Cached status shows disconnected, forcing API check');
+            }
+          }
+          
+          // We need to check LinkedIn API status (either 15 minutes passed or cached status is false)
+          logger.info('[PlatformSwitcher] LinkedIn: Performing API connection check');
+          
+          // Initialize switching state for LinkedIn
+          const startTime = Date.now();
+          setSwitchingState({
+            isActive: true,
+            platform: platformId,
+            stage: 'verifying',
+            progress: 25,
+            message: 'Checking LinkedIn connection status...',
+            startTime
+          });
+          
+          // Check LinkedIn connection via API
+          const isConnected = await platformManager.verifyPlatformConnectionRealtime(platformId);
+          
+          // Record that we just checked LinkedIn
+          LinkedInTimer.recordLinkedInCheck();
+          LinkedInTimer.setCachedLinkedInStatus(isConnected);
+          
+          if (!isConnected) {
+            // LinkedIn is disconnected - show reconnection dialog
+            logger.warn('[PlatformSwitcher] LinkedIn API check failed - showing reconnection dialog');
+            updateSwitchingProgress('failed', 100, 'LinkedIn session expired');
+            
+            // Store the platform switch we want to complete after reconnection
+            setPendingPlatformSwitch(platformId);
+            setShowLinkedInReconnectionDialog(true);
+            
+            // Reset switching state
+            setTimeout(() => {
+              setSwitchingState(prev => ({ ...prev, isActive: false }));
+            }, 1500);
+            
+            toast.warning('LinkedIn session expired. Please reconnect to continue.');
+            return;
+          }
+          
+          // LinkedIn is connected - proceed with switch
+          updateSwitchingProgress('switching', 50, 'LinkedIn connected - switching platform...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          localStorage.setItem('dailyfix_active_platform', platformId);
+          logger.info(`[PlatformSwitcher] Set ${platformId} as active platform in localStorage`);
+          
+          // Dispatch platform change event
+          updateSwitchingProgress('refreshing', 75, 'Refreshing LinkedIn contacts...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          setTimeout(() => {
+            try {
+              window.dispatchEvent(new CustomEvent('platform-connection-changed', {
+                detail: {
+                  platform: platformId,
+                  isActive: true,
+                  timestamp: Date.now(),
+                  source: 'platform-switch-verified'
+                }
+              }));
+              
+              logger.info(`[PlatformSwitcher] LinkedIn switch completed with API verification`);
+            } catch (error) {
+              logger.error('[PlatformSwitcher] Error during LinkedIn verified switch event:', error);
+            }
+          }, 0);
+          
+          // Complete LinkedIn switch
+          updateSwitchingProgress('completed', 100, 'Successfully switched to LinkedIn');
+          toast.success('Switched to LinkedIn');
+          setShowContactRefreshPrompt(true);
+          
+          setTimeout(() => {
+            setSwitchingState(prev => ({ ...prev, isActive: false }));
+            onPlatformChange(platformId);
+          }, 2000);
+          
+          return;
+        }
+        
+        // **REGULAR PLATFORM HANDLING - Immediate API checks for non-LinkedIn platforms**
+        logger.info(`[PlatformSwitcher] Regular platform ${platformId} - using immediate API verification`);
+        
         // Initialize switching state
         const startTime = Date.now();
         setSwitchingState({
@@ -223,7 +364,7 @@ export const PlatformSwitcher = ({
         // Update switching state with timeout ID
         setSwitchingState(prev => ({ ...prev, timeoutId }));
 
-        // Step 1: Verify platform connection via API
+        // Step 1: Verify platform connection via API (immediate check for non-LinkedIn)
         updateSwitchingProgress('verifying', 25, `Checking ${platformId} API status...`);
         
         const isConnected = await platformManager.verifyPlatformConnectionRealtime(platformId);
@@ -338,6 +479,54 @@ export const PlatformSwitcher = ({
     setIsOpen(false);
   };
 
+  // LinkedIn reconnection handlers
+  const handleLinkedInReconnectionSuccess = () => {
+    logger.info('[PlatformSwitcher] LinkedIn reconnection successful');
+    
+    // Complete the pending platform switch
+    if (pendingPlatformSwitch) {
+      logger.info(`[PlatformSwitcher] Completing pending switch to ${pendingPlatformSwitch}`);
+      
+      // Update localStorage
+      localStorage.setItem('dailyfix_active_platform', pendingPlatformSwitch);
+      
+      // Dispatch platform change event
+      setTimeout(() => {
+        try {
+          window.dispatchEvent(new CustomEvent('platform-connection-changed', {
+            detail: {
+              platform: pendingPlatformSwitch,
+              isActive: true,
+              timestamp: Date.now(),
+              source: 'platform-switch-after-reconnection'
+            }
+          }));
+          
+          logger.info(`[PlatformSwitcher] Platform switch to ${pendingPlatformSwitch} completed after reconnection`);
+        } catch (error) {
+          logger.error('[PlatformSwitcher] Error completing platform switch after reconnection:', error);
+        }
+      }, 0);
+      
+      // Complete the switch
+      onPlatformChange(pendingPlatformSwitch);
+      toast.success(`Switched to ${pendingPlatformSwitch.charAt(0).toUpperCase() + pendingPlatformSwitch.slice(1)} after reconnection`);
+    }
+    
+    // Reset states
+    setPendingPlatformSwitch(null);
+    setShowLinkedInReconnectionDialog(false);
+    setIsOpen(false);
+  };
+
+  const handleLinkedInReconnectionCancel = () => {
+    logger.info('[PlatformSwitcher] LinkedIn reconnection cancelled by user');
+    
+    // Reset states without completing the platform switch
+    setPendingPlatformSwitch(null);
+    setShowLinkedInReconnectionDialog(false);
+  };
+
   const buttonClass = `flex items-center ${isMobile ? 'justify-start w-full gap-2' : 'justify-center'} h-8 ${isMobile ? 'w-full' : 'w-8'} p-2 rounded-md hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors relative ${connectedPlatforms.length === 0 ? 'border-2 border-dashed border-muted-foreground/30' : ''}`;
 
   // Determine platform-specific glow classes
@@ -347,6 +536,12 @@ export const PlatformSwitcher = ({
     }
     if (platformId === 'whatsapp') {
       return 'platform-icon-glow-base whatsapp-icon-glow';
+    }
+    if (platformId === 'instagram') {
+      return 'platform-icon-glow-base instagram-icon-glow';
+    }
+    if (platformId === 'linkedin') {
+      return 'platform-icon-glow-base linkedin-icon-glow';
     }
     return '';
   };
@@ -358,6 +553,12 @@ export const PlatformSwitcher = ({
     }
     if (platformId === 'whatsapp') {
       return 'platform-active-indicator whatsapp-active-indicator';
+    }
+    if (platformId === 'instagram') {
+      return 'platform-active-indicator instagram-active-indicator';
+    }
+    if (platformId === 'linkedin') {
+      return 'platform-active-indicator linkedin-active-indicator';
     }
     return '';
   };
@@ -560,8 +761,30 @@ export const PlatformSwitcher = ({
               </div>
             </>
           )}
+          
+          {/* Platform Connection Note */}
+          <div className="mt-4 pt-3 border-t border-muted">
+            <div className="flex items-start gap-2">
+              <PriorityBadge 
+                priority="medium" 
+                size="sm" 
+                className="mt-0.5 flex-shrink-0"
+              />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong>Note:</strong> If you connected a platform and if you can't see the platform here immediately, refresh the page and return here.
+              </p>
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
+      
+      {/* LinkedIn Reconnection Dialog */}
+      <LinkedInReconnectionDialog
+        isOpen={showLinkedInReconnectionDialog}
+        onClose={handleLinkedInReconnectionCancel}
+        onSuccess={handleLinkedInReconnectionSuccess}
+        onCancel={handleLinkedInReconnectionCancel}
+      />
     </TooltipProvider>
   );
 };

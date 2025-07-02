@@ -1,11 +1,12 @@
 import api from '@/utils/api';
 import logger from '@/utils/logger';
 import { handleError, ErrorTypes, AppError } from '@/utils/errorHandler';
-// Removed unused imports: isWhatsAppConnected, isTelegramConnected
 // import { getState, getUserId } from '@/utils/storeStatesUtils';
 
 const WHATSAPP_API_PREFIX = '/api/v1/whatsapp';
-const MATRIX_API_PREFIX = '/api/v1/matrix';
+const TELEGRAM_API_PREFIX = '/api/v1/telegram';
+const LINKEDIN_API_PREFIX = '/api/v1/linkedin';
+const INSTAGRAM_API_PREFIX = '/api/v1/instagram';
 
 /**
  * Service for managing contacts across platforms
@@ -16,90 +17,55 @@ class ContactService {
   syncInProgress: Map<string, boolean>;
   lastSyncTime: Map<string, number>;
   CACHE_TTL: number;
-  // Add exponential backoff tracking
-  private apiFailureCount: Map<string, number>;
-  private lastApiFailure: Map<string, number>;
-  private readonly MAX_RETRIES = 3;
-  private readonly BASE_BACKOFF_MS = 2000; // 2 seconds base
+  apiFailures: Map<string, number>;
+  apiBackoff: Map<string, number>;
 
   constructor() {
     this.cache = new Map<string, { contacts: any[], timestamp: number }>();
     this.syncInProgress = new Map();
     this.lastSyncTime = new Map();
     this.CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-    this.apiFailureCount = new Map();
-    this.lastApiFailure = new Map();
+    this.apiFailures = new Map();
+    this.apiBackoff = new Map();
   }
 
   /**
-   * Calculate exponential backoff with jitter
-   * @param {number} attempt - Current attempt number (0-based)
-   * @returns {number} Backoff time in milliseconds
+   * Records an API failure for exponential backoff
    */
-  private calculateBackoff(attempt: number): number {
-    const exponentialDelay = this.BASE_BACKOFF_MS * Math.pow(2, attempt);
-    const jitter = Math.random() * 1000; // Add up to 1 second of jitter
-    return Math.min(exponentialDelay + jitter, 60000); // Cap at 60 seconds
+  recordApiFailure(apiKey: string) {
+    const currentFailures = this.apiFailures.get(apiKey) || 0;
+    this.apiFailures.set(apiKey, currentFailures + 1);
+    
+    // Set backoff time (exponential: 1s, 2s, 4s, 8s, etc.)
+    const backoffTime = Math.min(1000 * Math.pow(2, currentFailures), 30000); // Max 30s
+    this.apiBackoff.set(apiKey, Date.now() + backoffTime);
+    
+    console.warn(`[ContactService] API failure recorded for ${apiKey}, backoff until: ${new Date(Date.now() + backoffTime)}`);
   }
 
   /**
-   * Check if we should retry API call based on failure count and backoff
-   * @param {string} key - Platform or user key
-   * @returns {boolean} Whether to retry
+   * Resets API failure count for successful calls
    */
-  private shouldRetryApiCall(key: string): boolean {
-    const failureCount = this.apiFailureCount.get(key) || 0;
-    const lastFailure = this.lastApiFailure.get(key) || 0;
+  resetApiFailureCount(apiKey: string) {
+    this.apiFailures.delete(apiKey);
+    this.apiBackoff.delete(apiKey);
+  }
+
+  /**
+   * Checks if we should retry API calls (not in backoff period)
+   */
+  shouldRetryApiCall(apiKey: string): boolean {
+    const backoffUntil = this.apiBackoff.get(apiKey);
+    if (!backoffUntil) return true;
+    
     const now = Date.now();
-    
-    // If we've exceeded max retries, check if enough time has passed for reset
-    if (failureCount >= this.MAX_RETRIES) {
-      const resetTime = 300000; // 5 minutes
-      if (now - lastFailure > resetTime) {
-        // Reset failure count after extended period
-        this.apiFailureCount.set(key, 0);
-        this.lastApiFailure.delete(key);
-        return true;
-      }
-      return false;
+    if (now > backoffUntil) {
+      // Backoff period expired, clear it
+      this.apiBackoff.delete(apiKey);
+      return true;
     }
     
-    // Check if we're in backoff period
-    if (failureCount > 0) {
-      const backoffTime = this.calculateBackoff(failureCount - 1);
-      if (now - lastFailure < backoffTime) {
-        logger.debug(`[ContactService] API call for ${key} is in backoff period (${Math.round((backoffTime - (now - lastFailure)) / 1000)}s remaining)`);
-        return false;
-      }
-    }
-    
-    return true;
-  }
-
-  /**
-   * Record API failure for exponential backoff
-   * @param {string} key - Platform or user key
-   */
-  private recordApiFailure(key: string): void {
-    const currentCount = this.apiFailureCount.get(key) || 0;
-    this.apiFailureCount.set(key, currentCount + 1);
-    this.lastApiFailure.set(key, Date.now());
-    
-    const newCount = currentCount + 1;
-    logger.warn(`[ContactService] API failure recorded for ${key} (${newCount}/${this.MAX_RETRIES})`);
-    
-    if (newCount >= this.MAX_RETRIES) {
-      logger.error(`[ContactService] Max retries exceeded for ${key}, backing off for extended period`);
-    }
-  }
-
-  /**
-   * Reset API failure count on successful call
-   * @param {string} key - Platform or user key
-   */
-  private resetApiFailureCount(key: string): void {
-    this.apiFailureCount.delete(key);
-    this.lastApiFailure.delete(key);
+    return false;
   }
 
   /**
@@ -226,7 +192,26 @@ class ContactService {
 
       // Only proceed with API request if platform is connected
       logger.info(`[ContactService] ${platform} is connected, fetching contacts`);
-      const apiPrefix = platform === 'whatsapp' ? WHATSAPP_API_PREFIX : `/api/v1/${platform}`;
+      
+      // ENHANCED: Get platform-specific API prefix
+      let apiPrefix;
+      switch (platform) {
+        case 'whatsapp':
+          apiPrefix = WHATSAPP_API_PREFIX;
+          break;
+        case 'telegram':
+          apiPrefix = TELEGRAM_API_PREFIX;
+          break;
+        case 'linkedin':
+          apiPrefix = LINKEDIN_API_PREFIX;
+          break;
+        case 'instagram':
+          apiPrefix = INSTAGRAM_API_PREFIX;
+          break;
+        default:
+          apiPrefix = WHATSAPP_API_PREFIX;
+      }
+      
       const response = await api.get(`${apiPrefix}/contacts`);
 
       // Reset failure count on successful API call
@@ -291,8 +276,25 @@ class ContactService {
       // Clear existing cache
       this.clearCache(userId);
 
-      // CRITICAL FIX: Use platform-specific API prefix
-      const apiPrefix = platform === 'whatsapp' ? WHATSAPP_API_PREFIX : `/api/v1/${platform}`;
+      // ENHANCED: Use platform-specific API prefix
+      let apiPrefix;
+      switch (platform) {
+        case 'whatsapp':
+          apiPrefix = WHATSAPP_API_PREFIX;
+          break;
+        case 'telegram':
+          apiPrefix = TELEGRAM_API_PREFIX;
+          break;
+        case 'linkedin':
+          apiPrefix = LINKEDIN_API_PREFIX;
+          break;
+        case 'instagram':
+          apiPrefix = INSTAGRAM_API_PREFIX;
+          break;
+        default:
+          apiPrefix = WHATSAPP_API_PREFIX;
+      }
+      
       logger.info(`[ContactService] Using API prefix for fresh sync: ${apiPrefix}`);
 
       // Make API call to fresh sync endpoint with correct platform
@@ -350,7 +352,7 @@ class ContactService {
    * @param {string} contactId - The contact ID to sync
    * @returns {Promise<Object>} Sync result
    */
-  async syncContact(contactId: string, isConnected: boolean) {
+  async syncContact(contactId: string, isWhatsAppConnected: boolean) {
     if (!contactId) {
       throw new AppError(ErrorTypes.VALIDATION, 'Contact ID is required');
     }
@@ -369,7 +371,7 @@ class ContactService {
       // const isWhatsAppConnected = whatsappConnected ||
       //                         accounts.some(acc => acc.platform === 'whatsapp' && acc.status === 'active');
 
-      if (!isConnected) {
+      if (!isWhatsAppConnected) {
         logger.info('[ContactService] WhatsApp is not connected, skipping contact sync');
         return { status: 'skipped', reason: 'whatsapp_not_connected' };
       }
@@ -431,7 +433,7 @@ class ContactService {
 
   /**
    * Clears the contact cache for a specific user or all users
-   * @param {string|null} userId - Optional user ID to clear specific cache, null for all
+   * @param {string} [userId] - Optional user ID to clear specific cache
    */
   clearCache(userId: string | null) {
     if (userId) {

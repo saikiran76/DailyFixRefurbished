@@ -55,8 +55,8 @@ export const ResponseSchemas = {
 
 // Create base axios instance
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://api.dailyfix.app',
-  timeout: 35000, // 35 seconds
+  baseURL: import.meta.env.VITE_API_URL || 'https://dailyfix-api-gateway.duckdns.org',
+  timeout: 45000, // 45 seconds
   headers: {
     'Content-Type': 'application/json',
   }
