@@ -1592,7 +1592,7 @@ export default function Page() {
           </div>
           
           {/* Test Notification Button - Temporary for debugging */}
-          <div className="fixed bottom-4 right-4 z-50">
+          {/* <div className="fixed bottom-4 right-4 z-50">
             <button 
               onClick={async () => {
                 console.log('[DEBUG] Test button clicked');
@@ -1617,7 +1617,7 @@ export default function Page() {
             >
               Test Notifications
             </button>
-          </div>
+          </div> */}
           
           {/* Test Notification Button - Only in development */}
           {/* {process.env.NODE_ENV === 'development' && <TestNotification />} */}
